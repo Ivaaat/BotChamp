@@ -14,7 +14,6 @@ from championat_class import Calendar, Table, Team
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
-#from live import Live
 from MyDataBase import MyBaseDB
 import re
 from test import json_championat
@@ -27,8 +26,6 @@ bot.set_my_commands(
         telebot.types.BotCommand("start", "start_parse"),
     ],
 )
-
-#live = Live()
 
 with open('MyBase.txt', "r", encoding = 'utf-8') as file:
             content = file.readlines()
