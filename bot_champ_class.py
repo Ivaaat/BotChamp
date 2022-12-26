@@ -14,7 +14,7 @@ from championat_class import Calendar, Table, Team
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
-from MyDataBase_ import MyBaseDB
+from MyDataBase import MyBaseDB
 import re
 from test import json_championat
 
