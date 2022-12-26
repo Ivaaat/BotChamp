@@ -2,7 +2,6 @@ config.py
 constants_class.py
 live.py
 MyBase.txt
-MyDataBase.py
 news_football_class.py
 test.py
 world_champ.py
