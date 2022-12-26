@@ -39,9 +39,6 @@ class Championat:
         self.tree = html.fromstring(self.response_text)
 
     def get_response_calendar(self):
-        #response = sess.get(self.url_championat)
-        #tree = html.fromstring(response.text)
-        #parse_text = tree.xpath(parse_xpath_text)
         parse_calendar = self.tree.xpath(parse_xpath_text)
         self.url_calendar = f'{parse_site}{parse_calendar[0]}calendar'
         response = sess.get(self.url_calendar)  
@@ -91,11 +88,6 @@ class Championat:
 
     def get_logo(self):
         self.list_ref_logo = self.tree.xpath(logo_ref_xpath)
-
-        
-
-    def get_keyboard():
-        pass
 
 class Calendar(Championat):
     def get_calendar(self):
