@@ -59,43 +59,6 @@ def menu_button(markup):
     button_menu = types.KeyboardButton('Главное меню')
     return markup.add(button_menu)
    
-# def push():
-#     list_photo_text = "new"
-#     old_news = "old"
-#     aczx = []
-#     while True:
-#         timer = 20
-#         if PUSH_NOTIFIC:
-#             parse_site1 = f'{parse_site}/news/football/1.html'
-#             response = sess.get(parse_site1)
-#             tree = html.fromstring(response.text)
-#             news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
-#             list_photo_text = get_one_news(news_ref[0])
-#             if list_photo_text[1][:20] != old_news[:20]:
-#                 old_news = list_photo_text[1] 
-#                 if len(list_photo_text[1]) >= 1024:
-#                     num_symb =list_photo_text[1][:1024].rfind('.') + 1
-#                     bot.send_photo(user_id, 
-#                         list_photo_text[0],
-#                         caption=list_photo_text[1][:num_symb])
-#                     for x in range(num_symb, len(list_photo_text[1]), 1024):
-#                         bot.send_message(user_id, list_photo_text[1][x:x+1024])
-#                 else:
-#                     bot.send_photo(user_id, 
-#                         list_photo_text[0],
-#                         caption=list_photo_text[1],
-#                     )
-#             for query in mass_youtube:
-#                 new_video_dict = bs4_youtube(query)
-#                 for desc_video, ref in new_video_dict.items():
-#                     if desc_video not in aczx:
-#                         aczx.append(desc_video)
-#                         #old_video = new_video_dict[new_video]
-#                         bot.send_message(user_id, ref)
-#                     break
-
-
-#         time.sleep(timer)
 
 def push(message):
     try:
@@ -137,9 +100,8 @@ def push(message):
         time.sleep(timer)
         threading.Timer(10,push(message)).start()
 
-#threading.Timer(10,push).start()
 base = MyBaseDB()
-#@bot.message_handler(commands='push')
+
 def push_notifc(message, PUSH_NOTIFIC):
     if PUSH_NOTIFIC == True:
         PUSH_NOTIFIC = False
@@ -168,7 +130,6 @@ def button_country_news(message):
     if str(message.chat.id) not in base.open():
         msg = bot.send_message(message.chat.id, "Введи проверочное слово")
         return bot.register_next_step_handler(msg, user_verif)
-    #thr1 = threading.Timer(10,push).start()
     markup = types.ReplyKeyboardMarkup()
     button_country = types.KeyboardButton('Чемпионаты🏆')
     button_news = types.KeyboardButton('Новости📰')
@@ -234,21 +195,13 @@ def table_text(message, back = ""):
         msg = bot.send_message(message.chat.id, 'Выбери чемпионат', reply_markup=markup)
         bot.register_next_step_handler(msg, get_dict_review)
     elif 'Live' in [message.text, back]:
-        #live = Live()
-        #back_button(markup)
-        #bot.send_message(message.chat.id, live.view_live(), reply_markup=markup)
-        #bot.send_message(message.chat.id, live.view_live())
-        #bot.send_message(message.chat.id, formatting.mbold(live.view_live()), parse_mode='MarkdownV2')
-        #bot.send_message(message.chat.id, formatting.mbold(json_championat()), parse_mode='MarkdownV2')
         markup = types.ReplyKeyboardMarkup()
         button_today = types.KeyboardButton('Сегодня')
         button_live = types.KeyboardButton('Live')
         back_button(markup)
         markup.add(button_today, button_live)
         msg = bot.send_message(message.chat.id, 'Матчи', reply_markup=markup)
-        #bot.send_message(message.chat.id, formatting.mbold(str(live.time_code)), parse_mode='MarkdownV2' )
         bot.register_next_step_handler(msg, today_or_live)
-        #button_country_news(message)
     else:
         bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
         button_country_news(message)
@@ -295,7 +248,6 @@ def property_match(message):
             button_team2 = types.KeyboardButton(f'П2: {list_coeff[2]}')
             markup.add(button_team1, button_drow, button_team2)
             msg = bot.send_message(message.chat.id, "КФ", reply_markup= markup)
-            #bot.register_next_step_handler(msg, button_coeff)
             bot.register_next_step_handler(msg, table_text, 'Live')
     except Exception as main_menu_or_step_back:
         main_menu_or_step_back
@@ -369,27 +321,8 @@ def get_def(message, text):
 def create_table(message, country_button):
     #Создаю массив с командами из парсинга
     if country_button == 'Чемпионат мира🌍':
-        #dict_name_ref = {}
-        #markup = types.ReplyKeyboardMarkup()
-        # menu_button(markup)
-        # back_button(markup)
         bot.send_message(message.chat.id, f'{country_button}. Плей-офф! \n\n{world_playoff()}')
         return calendar_and_table(message, back = country_button)
-        #worldcup = WorldCup(mass_contry[country_button])
-        #button_table = worldcup.worldcup_table()
-    #     list_ref = worldcup.ref_country
-    #     list_table = worldcup.list_table
-    #     for i in range(len(button_table)):
-    #         button = types.KeyboardButton(button_table[i])
-    #         markup.add(button)
-    #         if i < len(list_table):
-    #             dict_name_ref[list_table[i]] = list_ref[i]
-    #         i+=1        
-    #     msg = bot.send_message(message.chat.id, 
-    #     f'{country_button}.Таблица чемпионата!\n\
-    # Выбери команду, чтобы узнать последние результаты', 
-    #                                     reply_markup=markup)
-    #     bot.register_next_step_handler(msg, worldcup.worldcup_results, dict_name_ref, bot, calendar_and_table, button_country_news)
     else:
         table = Table(mass_contry.get(country_button))                    
         mass = table.get_table()
