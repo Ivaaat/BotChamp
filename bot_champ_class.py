@@ -14,7 +14,7 @@ from championat_class import Calendar, Table, Team
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
-from MyDataBase import MyBaseDB
+from MyDataBase_ import MyBaseDB
 import re
 from test import json_championat
 
@@ -27,7 +27,9 @@ bot.set_my_commands(
     ],
 )
 
-with open('MyBase.txt', "r", encoding = 'utf-8') as file:
+base = MyBaseDB()
+
+with open(base.filename, "r", encoding = 'utf-8') as file:
             content = file.readlines()
             for i in range(1,len(content)):
                 send_user = re.findall(r'\d+', content[i])
@@ -97,7 +99,6 @@ def push(message):
         time.sleep(timer)
         threading.Timer(10,push(message)).start()
 
-base = MyBaseDB()
 
 def push_notifc(message, PUSH_NOTIFIC):
     if PUSH_NOTIFIC == True:
