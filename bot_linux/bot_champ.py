@@ -26,6 +26,7 @@ bot.set_my_commands(
 )
 sess = requests.Session()
 sess.headers.update(User_agent)
+bot.send_message(377190896,'Жми /start')
 
 #создание клавиатуры с название чемпионатов
 def champ_keyboard():
