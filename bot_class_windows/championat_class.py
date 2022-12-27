@@ -37,14 +37,51 @@ class Championat:
         response = sess.get(self.url_championat)
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
+    '''
+    def get_response_championat(self):
+        response = sess.get(self.url_championat)
+        self.response_text = response.text
+        self.tree = html.fromstring(self.response_text)
+    '''
 
     def get_response_calendar(self):
+        #response = sess.get(self.url_championat)
+        #tree = html.fromstring(response.text)
+        #parse_text = tree.xpath(parse_xpath_text)
         parse_calendar = self.tree.xpath(parse_xpath_text)
         self.url_calendar = f'{parse_site}{parse_calendar[0]}calendar'
         response = sess.get(self.url_calendar)  
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
+
   
+    '''
+    def get_calendar(self):
+        list_match = self.tree.xpath(parse_xpath_match)
+        list_result = self.tree.xpath(parse_xpath_result)
+        list_datematch = self.tree.xpath(date_xpath_match)
+        j = 0
+        for i in range(0,len(list_match),2):
+            self.list_match.append(' - '.join(list_match[i:i + 2]))
+            self.list_datematch.append (" ".join(list_datematch[j].split()))
+            self.list_result.append(list_result[j].strip())
+            j+=1
+        for i in range(0,len(self.num_tour),self.tour):
+            name_date = self.list_datematch[i:self.tour+i][0][:10] + '-' + self.list_datematch[i:self.tour+i][self.tour-1][:10]
+            if '– : –' not in self.list_result[i:self.tour+i][self.tour-1]  :
+                self.calendar['Тур ' + str(self.num_tour[i]) +' | '+ name_date +'| закончен'] =[
+                                                            self.list_datematch[i:self.tour+i],
+                                                            self.list_match[i:self.tour+i],
+                                                            self.list_result[i:self.tour+i]
+                                                            ]
+            else:
+                self.calendar['Тур ' + str(self.num_tour[i]) +' | '+ name_date] =[
+                                                            self.list_datematch[i:self.tour+i],
+                                                            self.list_match[i:self.tour+i],
+                                                            self.list_result[i:self.tour+i]
+                                                            ]
+        return self.calendar
+          '''
     def get_match(self):
         list_match = self.tree.xpath(parse_xpath_match)
         for i in range(0,len(list_match),2):
@@ -88,6 +125,11 @@ class Championat:
 
     def get_logo(self):
         self.list_ref_logo = self.tree.xpath(logo_ref_xpath)
+
+        
+
+    def get_keyboard():
+        pass
 
 class Calendar(Championat):
     def get_calendar(self):
@@ -152,4 +194,8 @@ class Team(Championat):
         self.logo_list = tree.xpath(logo_xpath)
         self.logo_ref_team = self.logo_list[0]
         self.result_title +=  '\n' + 'Последние результаты:\n' + self.dict_table_team[self.name_team]['Последние результаты\n']
- 
+        
+    def get_calendar():
+        pass
+    def get_table():
+        pass
