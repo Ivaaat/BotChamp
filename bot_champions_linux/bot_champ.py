@@ -74,7 +74,6 @@ def push():
 #СТАРТУЕМ ОТСЮДА
 @bot.message_handler(commands='start')
 def button_country_news(message):
-    #thr1 = threading.Timer(10,push).start()
     markup = types.ReplyKeyboardMarkup()
     button_country = types.KeyboardButton('Чемпионаты🏆')
     button_news = types.KeyboardButton('Новости📰')
