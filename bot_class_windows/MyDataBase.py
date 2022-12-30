@@ -1,7 +1,7 @@
 
 
 class MyBaseDB:
-    def __init__(self,filename = 'MyBase', one_column = "Number", two_column = 'Name', three_column = 'Id'):
+    def __init__(self, filename = 'MyBase', one_column = "Number", two_column = 'Name', three_column = 'Id'):
     #def __init__(self,filename = 'MyBase', one_column = "Имя", two_column = 'Name', three_column = 'id'):
         self.filename = f"{filename}.txt"
         self.one_column = one_column

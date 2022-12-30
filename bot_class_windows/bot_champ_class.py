@@ -17,6 +17,8 @@ from config import TOKEN, user_id, User_agent
 from MyDataBase import MyBaseDB
 import re
 from test import json_championat
+#from bot_class_windows.user_mongo import add_user, view_users, get_push
+from user_mongo import add_user, view_users, get_push, get_user
 
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
@@ -35,7 +37,6 @@ with open(base.filename, "r", encoding = 'utf-8') as file:
                 send_user = re.findall(r'\d+', content[i])
                 bot.send_message(send_user[len(send_user)-1],"Вышло обновление. Жми /start")
 
-PUSH_NOTIFIC = False
 sess = requests.Session()
 sess.headers.update(User_agent)
 
@@ -59,20 +60,21 @@ def menu_button(markup):
     return markup.add(button_menu)
    
 
-def push(message):
+def push(message, push_notif, old_news, old_video):
     try:
-        list_photo_text = "new"
-        old_news = "old"
-        aczx = []
+        #list_photo_text = "new"
+        #old_news = "old"
+        new_video = []
         while True:
             timer = 20
-            if PUSH_NOTIFIC:
+            #if PUSH_NOTIFIC:
+            if push_notif:
                 parse_site1 = f'{parse_site}/news/football/1.html'
                 response = sess.get(parse_site1)
                 tree = html.fromstring(response.text)
                 news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
                 list_photo_text = get_one_news(news_ref[0])
-                if list_photo_text[1][:20] != old_news[:20]:
+                if list_photo_text[1][:20] != old_news[1][:20]:
                     old_news = list_photo_text[1] 
                     if len(list_photo_text[1]) >= 1024:
                         num_symb =list_photo_text[1][:1024].rfind('.') + 1
@@ -81,32 +83,37 @@ def push(message):
                             caption=list_photo_text[1][:num_symb])
                         for x in range(num_symb, len(list_photo_text[1]), 1024):
                             bot.send_message(message.chat.id, list_photo_text[1][x:x+1024])
+                            list_photo_text[1][:20] == old_news[1][:20]
                     else:
                         bot.send_photo(user_id, 
                             list_photo_text[0],
                             caption=list_photo_text[1],
                         )
+                        list_photo_text[1][:20] == old_news[1][:20]
                 for query in mass_youtube:
                     new_video_dict = bs4_youtube(query)
                     for desc_video, ref in new_video_dict.items():
-                        if desc_video not in aczx:
-                            aczx.append(desc_video)
+                        if desc_video not in old_video:
+                            new_video.append(desc_video)
                             #old_video = new_video_dict[new_video]
                             bot.send_message(message.chat.id, ref)
                         break
+                    old_video.extend(new_video)
+            #elif not push_notif and message.text == "/push":
+                #return
             time.sleep(timer)
     except Exception:
         time.sleep(timer)
         threading.Timer(10,push(message)).start()
 
 
-def push_notifc(message, PUSH_NOTIFIC):
-    if PUSH_NOTIFIC == True:
-        PUSH_NOTIFIC = False
-        bot.send_message(message.chat.id,'Уведомлений не будет')
-    else:
-        PUSH_NOTIFIC = True
-        bot.send_message(message.chat.id,'Жди уведомления')
+# def push_notifc(message, PUSH_NOTIFIC):
+#     if PUSH_NOTIFIC == True:
+#         PUSH_NOTIFIC = False
+#         bot.send_message(message.chat.id,'Уведомлений не будет')
+#     else:
+#         PUSH_NOTIFIC = True
+#         bot.send_message(message.chat.id,'Жди уведомления')
 
 def user(message):
     bot.send_message(user_id,base.open())
@@ -116,8 +123,10 @@ def user_verif(message):
     if message.text != word_verif:
         msg = bot.send_message(message.chat.id, "Напиши админу: https://t.me/vaneuser")
         return bot.register_next_step_handler(msg, user_verif)
-    base.create(f'{message.chat.first_name} {message.chat.username}', message.chat.id )
-    bot.send_message(user_id,base.open())
+    #base.create(f'{message.chat.first_name} {message.chat.username}', message.chat.id, unique_strings=True )
+    add_user(f'{message.chat.first_name} {message.chat.username}', message.chat.id, push=False)
+    #bot.send_message(user_id,base.open())
+    bot.send_message(user_id,view_users())
     bot.send_message(user_id,"Новый пользователь {} {} {}".format(message.chat.id, message.chat.first_name, message.chat.username))
     return button_country_news(message)
 
@@ -125,7 +134,8 @@ def user_verif(message):
 #СТАРТУЕМ ОТСЮДА
 @bot.message_handler(commands='start')
 def button_country_news(message):
-    if str(message.chat.id) not in base.open():
+    #if str(message.chat.id) not in base.open():
+    if not get_user(message.chat.id):
         msg = bot.send_message(message.chat.id, "Введи проверочное слово")
         return bot.register_next_step_handler(msg, user_verif)
     markup = types.ReplyKeyboardMarkup()
@@ -161,14 +171,31 @@ def callback_query(call):
         button_country_news(call.message)
 
 #Создаем три кнопки "Чемпионаты🏆" и "Новости📰  'Обзоры⚽' после вызова старта" 
-def table_text(message, back = ""): 
+def table_text(message, back = "" ): 
     markup = types.ReplyKeyboardMarkup()
     if message.text == '/push':
-        PUSH_NOTIFIC = True
-        push_notifc(message, PUSH_NOTIFIC)
+        if get_push(message.chat.id) == False:
+            push_notif = True
+        else:
+            push_notif = False
+        #push_notifc(message, PUSH_NOTIFIC)
         time.sleep(1)
+        parse_site1 = f'{parse_site}/news/football/1.html'
+        response = sess.get(parse_site1)
+        tree = html.fromstring(response.text)
+        news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
+        old_news = get_one_news(news_ref[0])
+        old_video = []
+        for query in mass_youtube:
+            i = 0
+            new_video_dict = bs4_youtube(query)
+            for desc_video, ref in new_video_dict.items():
+                i+=1
+                old_video.append(desc_video)
+                if i == 1:
+                    break
         button_country_news(message)
-        return threading.Timer(10,push(message)).start()
+        return threading.Timer(10,push(message, push_notif, old_news, old_video)).start()
     elif message.text == '/user':
         user(message)
         return button_country_news(message)
