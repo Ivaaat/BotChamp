@@ -16,6 +16,15 @@ def add_user(employee_name, id, push = False):
     except Exception():
         return False
 
+def get_list_user():
+    list_user = []
+    for user_view in users_col.find():
+        for key, value in user_view.items():
+            if key == "_id":
+                list_user.append(value)
+    return list_user
+
+
 
 def view_users():
     user = ''

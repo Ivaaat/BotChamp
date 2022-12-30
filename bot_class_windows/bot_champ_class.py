@@ -18,7 +18,7 @@ from MyDataBase import MyBaseDB
 import re
 from test import json_championat
 #from bot_class_windows.user_mongo import add_user, view_users, get_push
-from user_mongo import add_user, view_users, get_push, get_user
+from user_mongo import add_user, view_users, get_push, get_user, get_list_user
 
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
@@ -31,11 +31,17 @@ bot.set_my_commands(
 
 base = MyBaseDB()
 
-with open(base.filename, "r", encoding = 'utf-8') as file:
-            content = file.readlines()
-            for i in range(1,len(content)):
-                send_user = re.findall(r'\d+', content[i])
-                bot.send_message(send_user[len(send_user)-1],"Вышло обновление. Жми /start")
+# #with open(base.filename, "r", encoding = 'utf-8') as file:
+#             content = file.readlines()
+#             for i in range(1,len(content)):
+#                 send_user = re.findall(r'\d+', content[i])
+#                 bot.send_message(send_user[len(send_user)-1],"Вышло обновление. Жми /start")
+
+user_list = get_list_user()
+for i in range(len(user_list)):
+                #send_user = re.findall(r'\d+', user_list[i])
+                bot.send_message(int(user_list[i]),"Вышло обновление. Жми /start")
+
 
 sess = requests.Session()
 sess.headers.update(User_agent)
@@ -67,7 +73,6 @@ def push(message, push_notif, old_news, old_video):
         new_video = []
         while True:
             timer = 20
-            #if PUSH_NOTIFIC:
             if push_notif:
                 parse_site1 = f'{parse_site}/news/football/1.html'
                 response = sess.get(parse_site1)
@@ -95,25 +100,13 @@ def push(message, push_notif, old_news, old_video):
                     for desc_video, ref in new_video_dict.items():
                         if desc_video not in old_video:
                             new_video.append(desc_video)
-                            #old_video = new_video_dict[new_video]
                             bot.send_message(message.chat.id, ref)
                         break
                     old_video.extend(new_video)
-            #elif not push_notif and message.text == "/push":
-                #return
             time.sleep(timer)
     except Exception:
         time.sleep(timer)
         threading.Timer(10,push(message)).start()
-
-
-# def push_notifc(message, PUSH_NOTIFIC):
-#     if PUSH_NOTIFIC == True:
-#         PUSH_NOTIFIC = False
-#         bot.send_message(message.chat.id,'Уведомлений не будет')
-#     else:
-#         PUSH_NOTIFIC = True
-#         bot.send_message(message.chat.id,'Жди уведомления')
 
 def user(message):
     bot.send_message(user_id,base.open())
@@ -178,7 +171,6 @@ def table_text(message, back = "" ):
             push_notif = True
         else:
             push_notif = False
-        #push_notifc(message, PUSH_NOTIFIC)
         time.sleep(1)
         parse_site1 = f'{parse_site}/news/football/1.html'
         response = sess.get(parse_site1)
@@ -187,13 +179,10 @@ def table_text(message, back = "" ):
         old_news = get_one_news(news_ref[0])
         old_video = []
         for query in mass_youtube:
-            i = 0
             new_video_dict = bs4_youtube(query)
             for desc_video, ref in new_video_dict.items():
-                i+=1
                 old_video.append(desc_video)
-                if i == 1:
-                    break
+                break
         button_country_news(message)
         return threading.Timer(10,push(message, push_notif, old_news, old_video)).start()
     elif message.text == '/user':
