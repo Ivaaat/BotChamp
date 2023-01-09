@@ -34,6 +34,14 @@ def view_users():
         user += '\n'
     return user
 
+def set_push(id, bool_push):
+    #push_dict = users_col.find_one({"_id": str(id)})
+    #push_dict['Push'] = bool
+    users_col.update_one({"_id": str(id)},{"$set":{"Push" : bool_push}})
+    push_dict = users_col.find_one({"_id": str(id)})
+    print(push_dict['Push'])
+
+
 
 def get_push(id) :
     push_dict = users_col.find_one({"_id": str(id)})
