@@ -17,8 +17,7 @@ from config import TOKEN, user_id, User_agent
 from MyDataBase import MyBaseDB
 import re
 from test import json_championat
-#from bot_class_windows.user_mongo import add_user, view_users, get_push
-from user_mongo import add_user, view_users, get_push, get_user, get_list_user
+from user_mongo import add_user, view_users, get_push, get_user, get_list_user, set_push
 
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
@@ -28,19 +27,18 @@ bot.set_my_commands(
         telebot.types.BotCommand("start", "start_parse"),
     ],
 )
-
 base = MyBaseDB()
-
 # #with open(base.filename, "r", encoding = 'utf-8') as file:
 #             content = file.readlines()
 #             for i in range(1,len(content)):
 #                 send_user = re.findall(r'\d+', content[i])
 #                 bot.send_message(send_user[len(send_user)-1],"Вышло обновление. Жми /start")
-
-user_list = get_list_user()
-for i in range(len(user_list)):
-                #send_user = re.findall(r'\d+', user_list[i])
-                bot.send_message(int(user_list[i]),"Вышло обновление. Жми /start")
+@bot.message_handler(regexp='send_user')
+def userlist(message):
+    user_list = get_list_user()
+    for i in range(len(user_list)):
+                    #send_user = re.findall(r'\d+', user_list[i])
+                    bot.send_message(int(user_list[i]),"Вышло обновление. Жми /start")
 
 
 sess = requests.Session()
@@ -66,47 +64,59 @@ def menu_button(markup):
     return markup.add(button_menu)
    
 
-def push(message, push_notif, old_news, old_video):
+#def push(message, push_notif, old_news, old_video):
+def push():
     try:
         #list_photo_text = "new"
         #old_news = "old"
         new_video = []
+        parse_site1 = f'{parse_site}/news/football/1.html'
+        response = sess.get(parse_site1)
+        tree = html.fromstring(response.text)
+        news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
+        old_news = get_one_news(news_ref[0])
+        old_video = []
+        for query in mass_youtube:
+            new_video_dict = bs4_youtube(query)
+            for desc_video, ref in new_video_dict.items():
+                old_video.append(desc_video)
+                break
         while True:
             timer = 20
-            if push_notif:
-                parse_site1 = f'{parse_site}/news/football/1.html'
-                response = sess.get(parse_site1)
-                tree = html.fromstring(response.text)
-                news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
-                list_photo_text = get_one_news(news_ref[0])
-                if list_photo_text[1][:20] != old_news[1][:20]:
-                    old_news = list_photo_text[1] 
-                    if len(list_photo_text[1]) >= 1024:
-                        num_symb =list_photo_text[1][:1024].rfind('.') + 1
-                        bot.send_photo(message.chat.id, 
-                            list_photo_text[0],
-                            caption=list_photo_text[1][:num_symb])
-                        for x in range(num_symb, len(list_photo_text[1]), 1024):
-                            bot.send_message(message.chat.id, list_photo_text[1][x:x+1024])
-                            list_photo_text[1][:20] == old_news[1][:20]
-                    else:
-                        bot.send_photo(user_id, 
-                            list_photo_text[0],
-                            caption=list_photo_text[1],
-                        )
-                        list_photo_text[1][:20] == old_news[1][:20]
-                for query in mass_youtube:
-                    new_video_dict = bs4_youtube(query)
-                    for desc_video, ref in new_video_dict.items():
-                        if desc_video not in old_video:
-                            new_video.append(desc_video)
-                            bot.send_message(message.chat.id, ref)
-                        break
-                    old_video.extend(new_video)
-            time.sleep(timer)
+            for user_id in get_list_user():
+                if get_push(user_id):
+                    parse_site1 = f'{parse_site}/news/football/1.html'
+                    response = sess.get(parse_site1)
+                    tree = html.fromstring(response.text)
+                    news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
+                    list_photo_text = get_one_news(news_ref[0])
+                    if list_photo_text[1][:20] != old_news[1][:20]:
+                        old_news = list_photo_text
+                        if len(list_photo_text[1]) >= 1024:
+                            num_symb =list_photo_text[1][:1024].rfind('.') + 1
+                            bot.send_photo(user_id, 
+                                list_photo_text[0],
+                                caption=list_photo_text[1][:num_symb])
+                            for x in range(num_symb, len(list_photo_text[1]), 1024):
+                                bot.send_message(user_id, list_photo_text[1][x:x+1024])
+                        else:
+                            bot.send_photo(user_id, 
+                                list_photo_text[0],
+                                caption=list_photo_text[1],
+                            )
+                    for query in mass_youtube:
+                        new_video_dict = bs4_youtube(query)
+                        for desc_video, ref in new_video_dict.items():
+                            if desc_video not in old_video:
+                                new_video.append(desc_video)
+                                bot.send_message(user_id, ref)
+                            break
+                        old_video.extend(new_video)
+                time.sleep(timer)
     except Exception:
         time.sleep(timer)
-        threading.Timer(10,push(message)).start()
+
+threading.Thread(target=push).start()
 
 def user(message):
     bot.send_message(user_id,base.open())
@@ -138,6 +148,10 @@ def button_country_news(message):
     button_live = types.KeyboardButton('Live')
     markup.add(button_country, button_news)
     markup.add(button_review, button_live)
+    if get_push(message.chat.id):
+        ne = 'не'
+    else:
+        ne = ""
     msg = bot.send_message(message.chat.id, f'{message.chat.first_name}! aka {message.chat.username}\n\n\
                      ⚽ Тебя приветствует @{bot.user.username} ⚽\n\n\
         Здесь можно узнать самое главное о топ чемпионатаx!\n\n\
@@ -147,7 +161,7 @@ def button_country_news(message):
                 ✅Жми -  Новости📰\n\n\
                 Хочешь посмотреть видеообзоры футбольных матчей?\n\
                 ✅Жми -  Обзоры⚽\n\n\n\
-                ✅Жми /push будут приходить уведомления о новостях!\n\n\n✅Выбирай!', reply_markup= markup)
+                ✅Жми /push и тебе {ne} будут приходить уведомления о новостях!\n\n\n✅Выбирай!', reply_markup= markup)
     bot.delete_my_commands()
     bot.set_my_commands(
     commands=[
@@ -168,23 +182,12 @@ def table_text(message, back = "" ):
     markup = types.ReplyKeyboardMarkup()
     if message.text == '/push':
         if get_push(message.chat.id) == False:
-            push_notif = True
+            set_push(message.chat.id, True)
+            bot.send_message(message.chat.id,'Жди уведомлений!')
         else:
-            push_notif = False
-        time.sleep(1)
-        parse_site1 = f'{parse_site}/news/football/1.html'
-        response = sess.get(parse_site1)
-        tree = html.fromstring(response.text)
-        news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
-        old_news = get_one_news(news_ref[0])
-        old_video = []
-        for query in mass_youtube:
-            new_video_dict = bs4_youtube(query)
-            for desc_video, ref in new_video_dict.items():
-                old_video.append(desc_video)
-                break
+            set_push(message.chat.id, False)
+            bot.send_message(message.chat.id,'Уведомлений не будет!')
         button_country_news(message)
-        return threading.Timer(10,push(message, push_notif, old_news, old_video)).start()
     elif message.text == '/user':
         user(message)
         return button_country_news(message)
@@ -290,7 +293,6 @@ def button_coeff(message, list_coeff):
         main_menu_or_step_back
 
 
-
 #Создаем две кнопки "Календарь" и "Таблица " 
 def calendar_and_table(message, back = ""):
     try:
@@ -313,6 +315,7 @@ def calendar_and_table(message, back = ""):
     except Exception as main_menu:
         main_menu
     
+
 #Нажатие кнопок обозначенных выше
 def get_def(message, text):
     try:
@@ -330,6 +333,7 @@ def get_def(message, text):
             bot.register_next_step_handler(msg, get_def, text)
     except Exception as step_back:
         step_back
+
 
 #Создание таблицы с командами
 def create_table(message, country_button):
@@ -357,6 +361,7 @@ def create_table(message, country_button):
                                         reply_markup=markup
         )
         bot.register_next_step_handler(msg, result_team, mass, country_button)
+
 
 #Нажатие на кнопку с названием команды
 def result_team(message, dict_team, country_button):
