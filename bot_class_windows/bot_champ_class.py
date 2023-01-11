@@ -1,7 +1,7 @@
 import requests
 from lxml import html
 import telebot
-from telebot import types
+from telebot import types, util
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import time
 import logging
@@ -33,12 +33,12 @@ base = MyBaseDB()
 #             for i in range(1,len(content)):
 #                 send_user = re.findall(r'\d+', content[i])
 #                 bot.send_message(send_user[len(send_user)-1],"Вышло обновление. Жми /start")
+
 @bot.message_handler(regexp='send_user')
 def userlist(message):
     user_list = get_list_user()
-    for i in range(len(user_list)):
-                    #send_user = re.findall(r'\d+', user_list[i])
-                    bot.send_message(int(user_list[i]),"Вышло обновление. Жми /start")
+    for user_id in user_list:
+        bot.send_message(user_id,"Вышло обновление. Жми /start")
 
 
 sess = requests.Session()
@@ -66,9 +66,6 @@ def menu_button(markup):
 
 #def push(message, push_notif, old_news, old_video):
 def push():
-    try:
-        #list_photo_text = "new"
-        #old_news = "old"
         new_video = []
         parse_site1 = f'{parse_site}/news/football/1.html'
         response = sess.get(parse_site1)
@@ -81,40 +78,55 @@ def push():
             for desc_video, ref in new_video_dict.items():
                 old_video.append(desc_video)
                 break
+        for text in ['Англия🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Франция🇫🇷']:
+            url = f'{mass_review[text]}'
+            response = sess.get(url)
+            tree = html.fromstring(response.text)
+            review_list_lxml_href = tree.xpath(review_xpath_href)
+            review_list_lxml_title = tree.xpath(review_xpath_title)
+            review_list_lxml_date= tree.xpath(review_xpath_date)
+            for i in range(len(review_list_lxml_href)):
+                review_title = review_list_lxml_title[i].replace('видео обзор матча'," ")
+                dict_review[review_title + review_list_lxml_date[i]] = review_list_lxml_href[i]
         while True:
-            timer = 20
-            for user_id in get_list_user():
-                if get_push(user_id):
+            try:
+                timer = 20      
+                list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+                if len(list_user_push_true) > 0:
                     parse_site1 = f'{parse_site}/news/football/1.html'
                     response = sess.get(parse_site1)
                     tree = html.fromstring(response.text)
                     news_ref = tree.xpath('//div  [@class="news _all"]//a[1]/@href') 
-                    list_photo_text = get_one_news(news_ref[0])
-                    if list_photo_text[1][:20] != old_news[1][:20]:
-                        old_news = list_photo_text
-                        if len(list_photo_text[1]) >= 1024:
-                            num_symb =list_photo_text[1][:1024].rfind('.') + 1
-                            bot.send_photo(user_id, 
-                                list_photo_text[0],
-                                caption=list_photo_text[1][:num_symb])
-                            for x in range(num_symb, len(list_photo_text[1]), 1024):
-                                bot.send_message(user_id, list_photo_text[1][x:x+1024])
+                    new_news = get_one_news(news_ref[0])
+                    if new_news[1][:20] != old_news[1][:20]:
+                        old_news = new_news
+                        if len(new_news[1]) >= 1024:
+                            num_symb =new_news[1][:1024].rfind('.') + 1
+                            for id in list_user_push_true:
+                                bot.send_photo(id, 
+                                    new_news[0],
+                                    caption=new_news[1][:num_symb])
+                            for x in range(num_symb, len(new_news[1]), 1024):
+                                    for id in list_user_push_true:
+                                        bot.send_message(id, new_news[1][x:x+1024])
                         else:
-                            bot.send_photo(user_id, 
-                                list_photo_text[0],
-                                caption=list_photo_text[1],
-                            )
+                            for id in list_user_push_true:
+                                bot.send_photo(id, 
+                                    new_news[0],
+                                    caption=new_news[1])
                     for query in mass_youtube:
                         new_video_dict = bs4_youtube(query)
                         for desc_video, ref in new_video_dict.items():
                             if desc_video not in old_video:
                                 new_video.append(desc_video)
-                                bot.send_message(user_id, ref)
+                                for id in list_user_push_true:
+                                    bot.send_message(id, ref)
                             break
                         old_video.extend(new_video)
                 time.sleep(timer)
-    except Exception:
-        time.sleep(timer)
+            except Exception as e:
+                bot.send_message(377190896, str(e))
+                time.sleep(timer)
 
 threading.Thread(target=push).start()
 
@@ -165,7 +177,7 @@ def button_country_news(message):
     bot.delete_my_commands()
     bot.set_my_commands(
     commands=[
-        telebot.types.BotCommand("push", "push notifications")
+        telebot.types.BotCommand("push", f"{ne} push notifications")
     ],
 )
     bot.register_next_step_handler(msg, table_text)
@@ -226,7 +238,7 @@ def table_text(message, back = "" ):
 def today_or_live(message):
     try:
         markup = types.ReplyKeyboardMarkup()
-        prop_match =  json_championat(message.text)
+        prop_match = json_championat(message.text)
         menu_button(markup)
         back_button(markup)
         if message.text == 'Назад':
