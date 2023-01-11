@@ -21,9 +21,8 @@ def get_list_user():
     for user_view in users_col.find():
         for key, value in user_view.items():
             if key == "_id":
-                list_user.append(value)
+                list_user.append(int(value))
     return list_user
-
 
 
 def view_users():
@@ -35,13 +34,12 @@ def view_users():
     return user
 
 def set_push(id, bool_push):
-    #push_dict = users_col.find_one({"_id": str(id)})
-    #push_dict['Push'] = bool
     users_col.update_one({"_id": str(id)},{"$set":{"Push" : bool_push}})
-    push_dict = users_col.find_one({"_id": str(id)})
-    print(push_dict['Push'])
 
-
+def add_field(id, num_field, bool_push):
+    user_dict = users_col.find_one({"_id": str(id)})
+    #num_field = 
+    users_col.update_one({"_id": str(id)},{"$set":{"Push" + num_field : bool_push}})
 
 def get_push(id) :
     push_dict = users_col.find_one({"_id": str(id)})
