@@ -37,13 +37,21 @@ def set_push(id, bool_push):
     users_col.update_one({"_id": str(id)},{"$set":{"Push" : bool_push}})
 
 def add_field(id, num_field, bool_push):
-    user_dict = users_col.find_one({"_id": str(id)})
-    #num_field = 
-    users_col.update_one({"_id": str(id)},{"$set":{"Push" + num_field : bool_push}})
+    users_col.update_one({"_id": str(id)},{"$set":{num_field : bool_push}})
 
-def get_push(id) :
+def delete_field(id, name_field):
+    users_col.update_one({"_id": str(id)},  {"$unset": {f"{name_field}":1}})
+
+def get_push(id, name_field = "") :
     push_dict = users_col.find_one({"_id": str(id)})
-    return push_dict['Push']
+    try:
+        if name_field != "":
+            return push_dict[name_field]
+        else:
+            return push_dict['Push']
+    except KeyError:
+        return ""
+        
 
 def get_user(id) :
     user_dict = users_col.find_one({"_id": str(id)})
