@@ -83,73 +83,86 @@ def parse_for_push(url):
     return title
         
 
-def push():
-        translator = Translator()
-        parse_site1 = f'{parse_site}/news/football/1.html'
-        response = sess.get(parse_site1)
-        tree = html.fromstring(response.text)
-        news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()') 
-        news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href') 
-        old_news = get_one_news(news_ref[0], news_text[0])
-        old_video = []
-        for query in mass_youtube:
-            new_video_dict = bs4_youtube(query)
-            for desc_video, ref in new_video_dict.items():
-                old_video.append(desc_video)
-                break
-        for url in list_ref_review:
-            old_video.append(parse_for_push(url))
-        while True:
-            try:
-                timer = 60      
-                list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
-                if len(list_user_push_true) > 0:
-                    parse_site1 = f'{parse_site}/news/football/1.html'
-                    response = sess.get(parse_site1)
-                    tree = html.fromstring(response.text)
-                    news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()') 
-                    news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href') 
-                    new_news = get_one_news(news_ref[0], news_text[0])
-                    if new_news[1][:20] != old_news[1][:20]:
-                        old_news = new_news
-                        if len(new_news[1]) >= 1024:
-                            num_symb =new_news[1][:1024].rfind('.') + 1
-                            for id in list_user_push_true:
-                                bot.send_photo(id, 
-                                    new_news[0],
-                                    caption=new_news[1][:num_symb])
-                            for x in range(num_symb, len(new_news[1]), 1024):
-                                    for id in list_user_push_true:
-                                        bot.send_message(id, new_news[1][x:x+1024])
-                        else:
-                            for id in list_user_push_true:
-                                bot.send_photo(id, new_news[0], caption=new_news[1])
-                    for i, query in enumerate(mass_youtube):
-                        new_video_dict = bs4_youtube(query)
-                        for desc_video, ref in new_video_dict.items():
-                            if desc_video not in old_video:
-                                result = translator.translate(desc_video)
-                                if result.src == 'en':
-                                    result = translator.translate(desc_video, dest='ru')
-                                    desc_video = result.text
-                                old_video[i] = desc_video
+def news():
+    parse_site1 = f'{parse_site}/news/football/1.html'
+    response = sess.get(parse_site1)
+    tree = html.fromstring(response.text)
+    news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()') 
+    news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href') 
+    old_news = get_one_news(news_ref[0], news_text[0])
+    while True:
+        try:
+            timer = 120      
+            list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+            if len(list_user_push_true) > 0:
+                parse_site1 = f'{parse_site}/news/football/1.html'
+                response = sess.get(parse_site1)
+                tree = html.fromstring(response.text)
+                news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()') 
+                news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href') 
+                new_news = get_one_news(news_ref[0], news_text[0])
+                if new_news[1][:20] != old_news[1][:20]:
+                    old_news = new_news
+                    if len(new_news[1]) >= 1024:
+                        num_symb =new_news[1][:1024].rfind('.') + 1
+                        for id in list_user_push_true:
+                            bot.send_photo(id, 
+                                new_news[0],
+                                caption=new_news[1][:num_symb])
+                        for x in range(num_symb, len(new_news[1]), 1024):
                                 for id in list_user_push_true:
-                                    bot.send_message(id, f"{desc_video}\n{ref}")
-                            break
-                    for url in list_ref_review:
-                        i+=1
-                        time.sleep(5)
-                        desc_video = parse_for_push(url)
-                        if desc_video not in old_video:
-                            old_video[i] = desc_video
-                            for id in list_user_push_true:
-                                bot.send_message(id, desc_video)
-                time.sleep(timer)
-            except Exception as e:
-                bot.send_message(377190896, str(e))
-                time.sleep(timer)
+                                    bot.send_message(id, new_news[1][x:x+1024])
+                    else:
+                        for id in list_user_push_true:
+                            bot.send_photo(id, new_news[0], caption=new_news[1])
+            time.sleep(timer)
+        except Exception as e:
+            bot.send_message(377190896, str('def news\n'+ e))
+            time.sleep(timer)
 
-threading.Thread(target=push).start()
+threading.Thread(target=news).start()
+
+
+def video():
+    translator = Translator()
+    old_video = []
+    for query in mass_youtube:
+        new_video_dict = bs4_youtube(query)
+        for desc_video, ref in new_video_dict.items():
+            old_video.append(desc_video)
+            break
+    for url in list_ref_review:
+        old_video.append(parse_for_push(url))
+    while True:
+        try:
+            timer = 60      
+            list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+            for i, query in enumerate(mass_youtube):
+                time.sleep(5)
+                new_video_dict = bs4_youtube(query)
+                for desc_video, ref in new_video_dict.items():
+                    if desc_video not in old_video:
+                        result = translator.translate(desc_video)
+                        if result.src == 'en':
+                            result = translator.translate(desc_video, dest='ru')
+                            desc_video = result.text
+                        old_video[i] = desc_video
+                        for id in list_user_push_true:
+                            bot.send_message(id, f"{desc_video}\n{ref}")
+                    break
+            for url in list_ref_review:
+                i+=1
+                time.sleep(5)
+                desc_video = parse_for_push(url)
+                if desc_video not in old_video:
+                    old_video[i] = desc_video
+                    for id in list_user_push_true:
+                        bot.send_message(id, desc_video)
+        except Exception as e:
+            bot.send_message(377190896, str('def video\n'+ e))
+            time.sleep(timer)
+
+threading.Thread(target=video).start()
 
 # def push_live():
 #     while True:
