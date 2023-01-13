@@ -18,6 +18,7 @@ from MyDataBase import MyBaseDB
 import re
 from test import json_championat
 from user_mongo import add_user, view_users, get_push, get_user, get_list_user, set_push, add_field, delete_field
+from googletrans import Translator
 
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
@@ -83,6 +84,7 @@ def parse_for_push(url):
         
 
 def push():
+        translator = Translator()
         parse_site1 = f'{parse_site}/news/football/1.html'
         response = sess.get(parse_site1)
         tree = html.fromstring(response.text)
@@ -99,7 +101,7 @@ def push():
             old_video.append(parse_for_push(url))
         while True:
             try:
-                timer = 20      
+                timer = 60      
                 list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
                 if len(list_user_push_true) > 0:
                     parse_site1 = f'{parse_site}/news/football/1.html'
@@ -126,12 +128,17 @@ def push():
                         new_video_dict = bs4_youtube(query)
                         for desc_video, ref in new_video_dict.items():
                             if desc_video not in old_video:
+                                result = translator.translate(desc_video)
+                                if result.src == 'en':
+                                    result = translator.translate(desc_video, dest='ru')
+                                    desc_video = result.text
                                 old_video[i] = desc_video
                                 for id in list_user_push_true:
                                     bot.send_message(id, f"{desc_video}\n{ref}")
                             break
                     for url in list_ref_review:
                         i+=1
+                        time.sleep(5)
                         desc_video = parse_for_push(url)
                         if desc_video not in old_video:
                             old_video[i] = desc_video

@@ -97,6 +97,7 @@ class Championat:
         list_datematch = self.tree.xpath(date_xpath_match)
         for i in range(0,len(list_datematch)):
             self.list_datematch.append (" ".join(list_datematch[i].split()))
+        return self.list_datematch
 
     def get_tour(self):
         list_tour = self.tree.xpath(num_xpath_tour)
