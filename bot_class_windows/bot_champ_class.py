@@ -9,16 +9,19 @@ from telebot import formatting
 from news_football_class import news_parse, get_one_news
 from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube
 from xpath_ref_class import *
-from constants_class import mass_contry, mass_review, parse_site, mass_youtube, list_ref_review
+from constants_class import mass_contry, mass_review, parse_site, mass_youtube, list_ref_review, list_name_site
 from championat_class import Calendar, Table, Team
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
 from MyDataBase import MyBaseDB
 import re
-from test import json_championat
-from user_mongo import add_user, view_users, get_push, get_user, get_list_user, set_push, add_field, delete_field
+from testd import json_championat
+from user_mongo import add_user, view_users, get_push, get_user, get_list_user, set_push, add_field, delete_field, get_live
 from googletrans import Translator
+
+
+
 
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
@@ -64,6 +67,18 @@ def back_button(markup):
 def menu_button(markup):
     button_menu = types.KeyboardButton('Главное меню')
     return markup.add(button_menu)
+
+def live():
+    old_result = get_live()
+    new_result = {}
+    while True:
+        for id, list_live in old_result.items():
+            new_result[id] = json_championat('push', list_live)
+            for i, match_live in enumerate(list_live):
+
+                if old_result[id][i] != match_live:
+                    bot.send_message(id, json_championat('push', match_live))
+#threading.Thread(target=live).start()
 
 def parse_for_push(url):
     response = sess.get(url)
@@ -117,9 +132,8 @@ def news():
                             bot.send_photo(id, new_news[0], caption=new_news[1])
             time.sleep(timer)
         except Exception as e:
-            bot.send_message(377190896, str('def news\n'+ e))
+            bot.send_message(user_id, str('def news\n'))
             time.sleep(timer)
-
 threading.Thread(target=news).start()
 
 
@@ -134,33 +148,38 @@ def video():
     for url in list_ref_review:
         old_video.append(parse_for_push(url))
     while True:
-        try:
-            timer = 60      
-            list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
-            for i, query in enumerate(mass_youtube):
-                time.sleep(5)
+        timer = 60      
+        list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+        for i, query in enumerate(mass_youtube):
+            time.sleep(5)
+            try:
                 new_video_dict = bs4_youtube(query)
                 for desc_video, ref in new_video_dict.items():
                     if desc_video not in old_video:
                         result = translator.translate(desc_video)
+                        old_video[i] = desc_video
                         if result.src == 'en':
                             result = translator.translate(desc_video, dest='ru')
                             desc_video = result.text
-                        old_video[i] = desc_video
                         for id in list_user_push_true:
                             bot.send_message(id, f"{desc_video}\n{ref}")
                     break
-            for url in list_ref_review:
-                i+=1
-                time.sleep(5)
+            except Exception:
+                bot.send_message(user_id, str('except parse youtube\n'))
+                time.sleep(timer)
+        for url in list_ref_review:
+            i+=1
+            time.sleep(5)
+            try:
                 desc_video = parse_for_push(url)
                 if desc_video not in old_video:
                     old_video[i] = desc_video
                     for id in list_user_push_true:
                         bot.send_message(id, desc_video)
-        except Exception as e:
-            bot.send_message(377190896, str('def video\n'+ e))
-            time.sleep(timer)
+            except Exception:
+                bot.send_message(user_id, str('except parse site\n'))
+                time.sleep(timer)
+       
 
 threading.Thread(target=video).start()
 
@@ -260,7 +279,7 @@ def table_text(message, back = "" ):
     elif 'Чемпионаты🏆' in [message.text, back]:
         msg = bot.send_message(message.chat.id, 'Выбери чемпионат', reply_markup=champ_keyboard())
         bot.register_next_step_handler(msg, calendar_and_table)
-    elif message.text == 'Новости📰':
+    elif 'Новости📰' in [message.text, back]:
         back_button(markup)
         dict_news = news_parse()
         for news in dict_news:
@@ -269,10 +288,12 @@ def table_text(message, back = "" ):
         msg = bot.send_message(message.chat.id,
                         'Новости', 
                         reply_markup = markup)
-        bot.register_next_step_handler(msg, get_news,dict_news)
+        bot.register_next_step_handler(msg, get_news, dict_news)
     elif 'Обзоры⚽' in [message.text, back]:
         back_button(markup)
         for key in mass_review:
+            if message.chat.id != user_id and (key == 'Чемпионат НН 22-23. Городская лига' or key.startswith('Кубок')) :
+                continue
             button_champ_rev = types.KeyboardButton(key)
             markup.add(button_champ_rev)
         msg = bot.send_message(message.chat.id, 'Выбери чемпионат', reply_markup=markup)
@@ -289,23 +310,27 @@ def table_text(message, back = "" ):
         bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
         button_country_news(message)
 
-def today_or_live(message):
+def today_or_live(message, back = ""):
     try:
         markup = types.ReplyKeyboardMarkup()
-        prop_match = json_championat(message.text)
         menu_button(markup)
         back_button(markup)
+        prop_match = json_championat(message.text)
         if message.text == 'Назад':
-            raise Exception(button_country_news(message))
+            return button_country_news(message)
         elif prop_match == "Нет матчей":
             button_name = types.KeyboardButton(prop_match)
             markup.add(button_name)
-        elif message.text in  ['Live', "Сегодня"]: 
+        elif message.text in  ['Live', "Сегодня"] or back in ['Live', "Сегодня"]:
+            if message.text not in ['Live', "Сегодня"]:
+                text = back
+            text = message.text
+            prop_match = json_championat(text)
             for name_match in prop_match:
                 button_name = types.KeyboardButton(name_match)
                 markup.add(button_name)
         else:
-            table_text(message, back = 'Live')
+            raise KeyError
         msg = bot.send_message(message.chat.id, message.text, reply_markup=markup)
         bot.register_next_step_handler(msg, property_match)
     except Exception:
@@ -318,26 +343,16 @@ def property_match(message):
         elif message.text == 'Назад':
             table_text(message, back = 'Live')
         else:
-            # list_coeff = json_championat("КФ", message.text)
-            # if len(list_coeff) == 0:
-            #     msg = bot.send_message(message.chat.id, "Матч окончен!")
-            #     return bot.register_next_step_handler(msg, table_text, 'Live')
-            # elif len(list_coeff) == 1:
-            #     msg = bot.send_message(message.chat.id, list_coeff[0])
-            #     return bot.register_next_step_handler(msg, table_text, 'Live')
-            # markup = types.ReplyKeyboardMarkup()
-            # button_team1 = types.KeyboardButton(f'П1: {list_coeff[0]}')
-            # button_drow = types.KeyboardButton(f'Н: {list_coeff[1]}')
-            # button_team2 = types.KeyboardButton(f'П2: {list_coeff[2]}')
-            # markup.add(button_team1, button_drow, button_team2)
             push = json_championat("push", message.text)
             if type(push) == bool:
                 bot.send_message(message.chat.id, "Матч не Live")
                 return table_text(message, back = 'Live')
             if get_push(message.chat.id, name_field = message.text) == "":
                 add_field(message.chat.id, message.text, True)
+                bot.send_message(message.chat.id, "Ты подписался на матч\n" + message.text)
             else:
                 delete_field(message.chat.id, message.text)
+                bot.send_message(message.chat.id, "Ты отписался от матча\n" + message.text)
                 # if get_push(message.chat.id, name_field = message.text):
                 #     bool_push = False
                 # else:
@@ -346,6 +361,7 @@ def property_match(message):
 
             #msg = bot.send_message(message.chat.id, "КФ", reply_markup= markup)
             #bot.register_next_step_handler(msg, table_text, 'Live')
+            today_or_live(message, back = "Live")
     except Exception:
         table_text(message, back = 'Live')
         
@@ -509,25 +525,31 @@ def view_tour (message, dict_calendar, tour, country_button):
 
 #получаем новости из чемпионата        
 def get_news(message,ref_dict):
-    if message.text in ref_dict :
-        axzc = ref_dict.get(message.text)
-        list_photo_text = get_one_news(axzc, message.text[5:])
-        if len(list_photo_text[1]) >= 1024:
-            num_symb =list_photo_text[1][:1024].rfind('.') + 1
-            bot.send_photo(message.chat.id, 
-                list_photo_text[0],
-                caption=list_photo_text[1][:num_symb])
-            for x in range(num_symb, len(list_photo_text[1]), 1024):
-                msg = bot.send_message(message.chat.id, list_photo_text[1][x:x+1024])
+    try:
+        if message.text in ref_dict :
+            axzc = ref_dict.get(message.text)
+            list_photo_text = get_one_news(axzc, message.text[5:])
+            if len(list_photo_text[1]) >= 1024:
+                num_symb =list_photo_text[1][:1024].rfind('.') + 1
+                bot.send_photo(message.chat.id, 
+                    list_photo_text[0],
+                    caption=list_photo_text[1][:num_symb])
+                for x in range(num_symb, len(list_photo_text[1]), 1024):
+                    msg = bot.send_message(message.chat.id, list_photo_text[1][x:x+1024])
+            else:
+                msg = bot.send_photo(message.chat.id, 
+                    list_photo_text[0],
+                    caption=list_photo_text[1],
+                )
+            bot.register_next_step_handler(msg, get_news,ref_dict)
+        elif message.text == 'Назад':
+            bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
+            button_country_news(message)
         else:
-            msg = bot.send_photo(message.chat.id, 
-                list_photo_text[0],
-                caption=list_photo_text[1],
-            )
-        bot.register_next_step_handler(msg, get_news,ref_dict)
-    elif message.text == 'Назад':
-        bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
-        button_country_news(message)
+            raise KeyError
+    except Exception:
+         table_text(message, back = 'Новости📰')
+
 
 #получение ссылки на обрзор из api youtube
 def get_dict_review(message, back = ""):
@@ -536,7 +558,8 @@ def get_dict_review(message, back = ""):
     menu_button(markup)
     back_button(markup)
     try:
-        if 'Англия🏴󠁧󠁢󠁥󠁮󠁧󠁿' in [message.text, back] or 'Франция🇫🇷' in [message.text, back]:
+        #if 'Англия🏴󠁧󠁢󠁥󠁮󠁧󠁿' in [message.text, back] or 'Франция🇫🇷' in [message.text, back] or:
+        if message.text in list_name_site or back in list_name_site:
             url = f'{mass_review[message.text]}'
             response = sess.get(url)
             tree = html.fromstring(response.text)
@@ -569,7 +592,7 @@ def get_dict_review(message, back = ""):
 
 def get_ref_review(message, dict_review, text):
     try:
-        if message.text in dict_review and (text == 'Англия🏴󠁧󠁢󠁥󠁮󠁧󠁿' or text == 'Франция🇫🇷'):
+        if message.text in dict_review and text in list_name_site:
             url = f'{dict_review[message.text]}'
             response = sess.get(url)
             tree = html.fromstring(response.text)
@@ -577,7 +600,7 @@ def get_ref_review(message, dict_review, text):
             if len(review_list_lxml_href) == 0:
                 review_list_lxml_href = tree.xpath(review_xpath_match_France_href)
             review_ref = review_list_lxml_href[0][review_list_lxml_href[0].find('https'):len(review_list_lxml_href[0])] 
-            msg = bot.send_message(message.chat.id, review_ref)
+            msg = bot.send_message(message.chat.id, f"{message.text}\n{review_ref}")
             return bot.register_next_step_handler(msg, get_ref_review,dict_review,text)
         elif message.text == 'Главное меню':
             button_country_news(message)
