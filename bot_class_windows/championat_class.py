@@ -3,10 +3,16 @@ import requests
 from lxml import html
 from constants_class import mass_contry, mass_review, parse_site
 import time
+from pymongo import MongoClient
 sess = requests.Session()
 sess.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36'
     })
+
+
+client = MongoClient()
+db = client['json_champ']
+users_col = db['users']
 
 
 class Championat:
@@ -43,6 +49,9 @@ class Championat:
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
     '''
+    
+
+
 
     def get_response_calendar(self):
         #response = sess.get(self.url_championat)
@@ -54,34 +63,6 @@ class Championat:
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
 
-  
-    '''
-    def get_calendar(self):
-        list_match = self.tree.xpath(parse_xpath_match)
-        list_result = self.tree.xpath(parse_xpath_result)
-        list_datematch = self.tree.xpath(date_xpath_match)
-        j = 0
-        for i in range(0,len(list_match),2):
-            self.list_match.append(' - '.join(list_match[i:i + 2]))
-            self.list_datematch.append (" ".join(list_datematch[j].split()))
-            self.list_result.append(list_result[j].strip())
-            j+=1
-        for i in range(0,len(self.num_tour),self.tour):
-            name_date = self.list_datematch[i:self.tour+i][0][:10] + '-' + self.list_datematch[i:self.tour+i][self.tour-1][:10]
-            if '– : –' not in self.list_result[i:self.tour+i][self.tour-1]  :
-                self.calendar['Тур ' + str(self.num_tour[i]) +' | '+ name_date +'| закончен'] =[
-                                                            self.list_datematch[i:self.tour+i],
-                                                            self.list_match[i:self.tour+i],
-                                                            self.list_result[i:self.tour+i]
-                                                            ]
-            else:
-                self.calendar['Тур ' + str(self.num_tour[i]) +' | '+ name_date] =[
-                                                            self.list_datematch[i:self.tour+i],
-                                                            self.list_match[i:self.tour+i],
-                                                            self.list_result[i:self.tour+i]
-                                                            ]
-        return self.calendar
-          '''
     def get_match(self):
         list_match = self.tree.xpath(parse_xpath_match)
         for i in range(0,len(list_match),2):
@@ -132,6 +113,8 @@ class Championat:
     def get_keyboard():
         pass
 
+
+            
 class Calendar(Championat):
     def get_calendar(self):
         self.get_response_calendar()
@@ -200,3 +183,46 @@ class Team(Championat):
         pass
     def get_table():
         pass
+
+# def add_db():
+#         for name in mass_contry.values():
+#             country =  db[name]
+#             calendar = Calendar(name)
+#             calendar.get_calendar()
+#             table = Table(name)
+#             table.get_teams()
+#             dac = [calendar.num_tour[i] + " " + calendar.list_datematch[i] + " " + calendar.list_match[i] for i in range(len(calendar.num_tour))]
+#             for team in table.list_teams :
+#                 #print(team)
+#                 users = {
+#                     "_id": 
+#                         {
+#                             team : 
+#                             {
+#                                 {
+#                                     'Таблица':
+#                                             {
+#                                                 {"Name" : employee_name},
+#                                                 {"Push": push}
+#                                             }
+#                                 },
+#                                 {
+#                                     'Календарь':
+#                                             {
+#                                                 {'Даты':},
+#                                                 {'Туры':},
+#                                                 {'Результаты':}
+#                                             }
+#                                 },
+#                                 {
+#                                     'Лого':
+#                                 }
+#                             }
+#                         }
+#                 }
+#             dac.sort(key = sortByAlphabet)
+#             print()
+        
+def sortByAlphabet(inputStr):
+        return int(inputStr[:2])
+#add_db()
