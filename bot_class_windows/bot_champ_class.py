@@ -1,5 +1,5 @@
 import requests
-from lxml import html
+from lxml import html, etree
 import telebot
 from telebot import types, util
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -10,7 +10,7 @@ from news_football_class import news_parse, get_one_news
 from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube
 from xpath_ref_class import *
 from constants_class import mass_contry, mass_review, parse_site, mass_youtube, mass_site, list_name_site
-from championat_class import Calendar, Table, Team
+from championat_class import Calendar, Table, Team, add_db, get_tab, get_logo
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
@@ -25,7 +25,6 @@ from datetime import datetime, timedelta
 
 
 client = MongoClient()
-db = client['json_champ']
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TOKEN)#Токен
@@ -41,7 +40,7 @@ base = MyBaseDB()
 #                 send_user = re.findall(r'\d+', content[i])
 #                 bot.send_message(send_user[len(send_user)-1],"Вышло обновление. Жми /start")
 
-bot.send_message(user_id,"Вышло обновление. Жми /start")
+#bot.send_message(user_id,"Вышло обновление. Жми /start")
 @bot.message_handler(regexp='send')
 def userlist(message):
     user_list = get_list_user()
@@ -105,10 +104,13 @@ def parse_for_push(url):
 
 def news():
     parse_site1 = f'{parse_site}/news/football/1.html'
+    #parse_site1 = "https://www.championat.com/rss/news/football/"
     response = sess.get(parse_site1)
+    #tree = etree.fromstring(bytes(bytearray(response.text, encoding='utf-8')))
     tree = html.fromstring(response.text)
-    news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()')
-    news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href')
+    # news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href')
+    news_text = tree.xpath('//a[@class="news-item__title _important"]/text()')
+    news_ref = tree.xpath('//a[@class="news-item__title _important"]//@href')
     old_news = get_one_news(news_ref[0], news_text[0])
     while True:
         try:
@@ -118,8 +120,10 @@ def news():
                 parse_site1 = f'{parse_site}/news/football/1.html'
                 response = sess.get(parse_site1)
                 tree = html.fromstring(response.text)
-                news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()')
-                news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href')
+                # news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()')
+                # news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href')
+                news_text = tree.xpath('//a[@class="news-item__title _important"]/text()')
+                news_ref = tree.xpath('//a[@class="news-item__title _important"]//@href')
                 new_news = get_one_news(news_ref[0], news_text[0])
                 if new_news[1][:20] != old_news[1][:20]:
                     old_news = new_news
@@ -143,6 +147,7 @@ threading.Thread(target=news).start()
 
 
 def video(name):
+    add_db(name, '2022/2023')
     translator = Translator()
     if name in mass_youtube:
         func_parse = bs4_youtube(mass_youtube[name])
@@ -151,9 +156,11 @@ def video(name):
     new_video_dict = func_parse
     for old_video in new_video_dict:
         break
+    db = client['json_champ']
     country =  db[name]
     calendar = country.find_one({"Чемпионат": '2022/2023'})
     now = datetime.now()
+    date_min = []
     for tour in calendar['Календарь'].values():
         if tour['Закончен']:
             continue
@@ -162,39 +169,47 @@ def video(name):
                 date_match = datetime.strptime(date.split('|')[0].replace('.', '-').strip(), '%d-%m-%Y %H:%M')
             except Exception:
                 date_match = datetime.strptime(date.split()[0].replace('.', '-').strip() + ' 23:59', '%d-%m-%Y %H:%M')
-            if not date.endswith('– : –') or now > date_match:
-                continue
-            time_sleep = (date_match + timedelta(hours=3)) - now
-            time.sleep(time_sleep.total_seconds())
-            while True:
-                ### Тут код парсинга
-                timer = 3600
-                list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
-                try:
-                    new_video_dict = func_parse
-                    for one_video in new_video_dict:
+            #if not date.endswith('– : –') and now < date_match:\
+            if date.endswith('– : –') and now < date_match:
+                date_min.append(date_match)
+    date_min.sort()
+    for next_date in date_min:
+        time_sleep_ends_match = timedelta(hours=3)
+        time_sleep = next_date - now
+        time.sleep(time_sleep.total_seconds())
+        time.sleep(time_sleep_ends_match.seconds)
+        add_db(name, '2022/2023')
+        #country =  db[name]
+        #calendar = country.find_one({"Чемпионат": '2022/2023'})
+        while True:
+            ### Тут код парсинга
+            timer = 3600
+            list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+            try:
+                new_video_dict = func_parse
+                for desc_video, ref in new_video_dict.items():
+                    if desc_video == old_video:
                         break
-                    for desc_video, ref in new_video_dict.items():
-                        if desc_video != old_video:
-                            result = translator.translate(desc_video)
-                            if result.src == 'en':
-                                result = translator.translate(desc_video, dest='ru')
-                                desc_video = result.text
-                            for id in list_user_push_true:
-                                bot.send_message(id, f"{desc_video}\n{ref}")
-                        break
-                    old_video = one_video
-                    time.sleep(timer)
-                except Exception:
-                    bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
-                    time.sleep(timer)
-                if now > (date_match + timedelta(1)):
-                    break
+                    result = translator.translate(desc_video)
+                    if result.src == 'en':
+                        result = translator.translate(desc_video, dest='ru')
+                        desc_video = result.text
+                    for id in list_user_push_true:
+                        bot.send_message(id, f"{desc_video}\n{ref}")
+                old_video = desc_video
+                time.sleep(timer)
+            except Exception:
+                bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
+                time.sleep(timer)
+            if now > (next_date + timedelta(1)):
+                break
 for name in mass_youtube:
-    threading.Thread(target=video, args=(name,)).start()
+    #threading.Thread(target=video, args=(name,)).start()
+    threading.Timer(1,video, [name]).start()
 for name in mass_site:
-    threading.Thread(target=video, args=(name,)).start()
+    threading.Timer(1,video, [name]).start()
 #threading.Thread(target=video('england')).start()
+#threading.Thread(target=video('germany')).start()
 
 # def push_live():
 #     while True:
@@ -429,8 +444,10 @@ def create_table(message, country_button):
         bot.send_message(message.chat.id, f'{country_button}. Плей-офф! \n\n{world_playoff()}')
         return calendar_and_table(message, back = country_button)
     else:
-        table = Table(mass_contry.get(country_button))
-        mass = table.get_table()
+        #table = Table(mass_contry.get(country_button))
+        #mass = table.get_table()
+        #add_db(mass_contry[country_button], '2022/2023')
+        mass = get_tab(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
@@ -457,12 +474,13 @@ def result_team(message, dict_team, country_button):
         markup.add(InlineKeyboardButton("Главное меню", callback_data="back"))
         text = message.text[4:message.text.find('О', 5)].strip()
         if text in dict_team:
-            team = Team(text, dict_team)
-            team.get_logo()
+            #team = Team(text, dict_team)
+            #team.get_logo()
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
-                team.logo_ref_team,
-                caption = formatting.mbold(team.result_title),
+                #dict_team['Лого'][text],
+                get_logo(mass_contry[country_button], text),
+                caption = formatting.mbold('\n\n'.join(dict_team[text]['Последние результаты\n'])),
                 parse_mode='MarkdownV2',
                 reply_markup = markup
                 )
@@ -615,7 +633,7 @@ def get_ref_review(message, dict_review, text):
             review_ref = review_list_lxml_href[0][review_list_lxml_href[0].find('https'):len(review_list_lxml_href[0])]
             msg = bot.send_message(message.chat.id, f"{message.text}\n{review_ref}")
             return bot.register_next_step_handler(msg, get_ref_review,dict_review,text)
-        elif text in mass_review:
+        elif message.text in dict_review and text in mass_review:
             msg = bot.send_message(message.chat.id, dict_review[message.text])
             return bot.register_next_step_handler(msg, get_ref_review, dict_review, text)
         elif message.text == 'Главное меню':

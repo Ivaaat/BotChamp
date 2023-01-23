@@ -4,6 +4,7 @@ from lxml import html
 from constants_class import mass_contry, mass_review, parse_site
 import time
 from pymongo import MongoClient
+from datetime import datetime, timedelta
 sess = requests.Session()
 sess.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36'
@@ -184,45 +185,105 @@ class Team(Championat):
     def get_table():
         pass
 
-# def add_db():
-#         for name in mass_contry.values():
-#             country =  db[name]
-#             calendar = Calendar(name)
-#             calendar.get_calendar()
-#             table = Table(name)
-#             table.get_teams()
-#             dac = [calendar.num_tour[i] + " " + calendar.list_datematch[i] + " " + calendar.list_match[i] for i in range(len(calendar.num_tour))]
-#             for team in table.list_teams :
-#                 #print(team)
-#                 users = {
-#                     "_id": 
-#                         {
-#                             team : 
-#                             {
-#                                 {
-#                                     'Таблица':
-#                                             {
-#                                                 {"Name" : employee_name},
-#                                                 {"Push": push}
-#                                             }
-#                                 },
-#                                 {
-#                                     'Календарь':
-#                                             {
-#                                                 {'Даты':},
-#                                                 {'Туры':},
-#                                                 {'Результаты':}
-#                                             }
-#                                 },
-#                                 {
-#                                     'Лого':
-#                                 }
-#                             }
-#                         }
-#                 }
-#             dac.sort(key = sortByAlphabet)
-#             print()
-        
+
+
+def add_db(name, name_champ):
+    country =  db[name]
+    calendar = Calendar(name)
+    calendar.get_response_calendar()
+    calendar.get_date()
+    calendar.get_match()
+    calendar.get_result()
+    calendar.get_tour()
+    table = Table(name)
+    table.get_table()
+    dac = [calendar.num_tour[i] + " " + calendar.list_datematch[i] + " | " + calendar.list_match[i] + " | " + calendar.list_result[i]  for i in range(len(calendar.num_tour))]
+    dac.sort(key = sortByAlphabet)
+    dict_champ = {}
+    #logo = {}
+    dict_champ['Чемпионат'] = name_champ
+    for i, name_team in enumerate(table.list_teams):
+        games = [dac[i][2:].strip() for i in range(len(dac)) if name_team in dac[i]]
+        # url = f'{parse_site}' + table.list_ref_logo[i]
+        # response = sess.get(url)
+        # tree = html.fromstring(response.text)
+        # logo_list = tree.xpath(logo_xpath)
+        dict_champ[name_team]={
+                            'Таблица':{
+                                        "Очки" : table.list_points[i],
+                                        "Игры": table.list_games[i]
+                                    },
+
+                            'Календарь': games,
+        }
+        #logo[name_team] = logo_list[0]
+        #country.update_one({"Чемпионат": '2022/2023'}, {'$set':{'Лого':{name_team:logo_list[0]}}})
+        #country.update_one({"Чемпионат": '2022/2023'}, {'$set':{dict_champ[name_team]['Таблица']["Очки"]:table.list_points[i]}})
+    #country.update_one({"Чемпионат": '2022/2023'}, {'$set':dict_champ,'$set':{'Лого':logo}})
+    country.update_one({"Чемпионат": '2022/2023'}, {'$set':dict_champ})
+    get_cal(name, name_champ)
+
+def get_logo(db_name, name):
+    country =  db[db_name]
+    logo = country.find_one({"Чемпионат": '2022/2023'})
+    return logo["Лого"][name]
+
+def get_cal(name, name_champ):
+    country =  db[name]
+    calendar = country.find_one({"Чемпионат": name_champ})
+    i = 0
+    asd = {}
+    for j in range(40):
+        try:
+            list_table = []
+            for team, stat in calendar.items():
+                if team not in ['_id','Чемпионат','Календарь','Лого']:
+                        table_str = '{}'.format(stat['Календарь'][j])
+                        if table_str in list_table:
+                            continue
+                        list_table.append(table_str)
+            i+=1
+            list_table.sort(key = lambda date: datetime.strptime(sort_date(date), '%d-%m-%Y %H:%M'))
+            for fdf in list_table:
+                if fdf.endswith('– : –'):
+                    ends = False
+                    break
+                ends = True
+            asd[f'Тур {i}'] = {'Матчи':list_table,
+                                'start':datetime.strptime(sort_date(list_table[0].split('|')[0].replace('.','-').strip()), '%d-%m-%Y %H:%M'),
+                                'end': datetime.strptime(sort_date(list_table[len(list_table) - 1].split('|')[0].replace('.','-').strip()), '%d-%m-%Y %H:%M'),
+                                'Закончен':ends,
+                                            }
+        except IndexError:
+            break
+    country.update_one({"Чемпионат": '2022/2023'}, {'$set':{'Календарь':asd}})
+
 def sortByAlphabet(inputStr):
-        return int(inputStr[:2])
-#add_db()
+    return int(inputStr[:2])
+
+def sort_date(date):
+    if len(date.split("|")[0].split()) == 1:
+        date = date.split("|")[0].replace('.','-') + " 23:59"
+        return date.strip()
+    return date.split('|')[0].replace('.','-').strip()
+
+def get_tab(name):
+    country =  db[name]
+    table = country.find_one({"Чемпионат": '2022/2023'})
+    i = 1
+    dict_table = {}
+    try:
+        for team, stat in table.items():
+            if team not in ['_id','Чемпионат','Календарь','Лого']:
+                i+=1
+                asd =[teams for teams in stat['Календарь'] if not teams.endswith("– : –")]
+                dict_table[team] = {
+                'Игры':stat['Таблица']['Игры'],
+                'Очки':stat['Таблица']['Очки'],
+                'Последние результаты\n': asd[len(asd) - 6:], 
+                'Лого': table['Лого'][team]
+                }
+        return dict_table
+    except Exception as e:
+            print(e)
+            print(e)
