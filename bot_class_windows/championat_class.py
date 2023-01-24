@@ -5,6 +5,10 @@ from constants_class import mass_contry, mass_review, parse_site
 import time
 from pymongo import MongoClient
 from datetime import datetime, timedelta
+from PIL import Image
+from PIL import ImageFont
+from PIL import ImageDraw 
+
 sess = requests.Session()
 sess.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36'
@@ -257,6 +261,8 @@ def get_cal(name, name_champ):
         except IndexError:
             break
     country.update_one({"Чемпионат": '2022/2023'}, {'$set':{'Календарь':asd}})
+    return asd
+
 
 def sortByAlphabet(inputStr):
     return int(inputStr[:2])
@@ -287,3 +293,52 @@ def get_tab(name):
     except Exception as e:
             print(e)
             print(e)
+
+def get_next_date(name):
+    country =  db[name]
+    calendar = country.find_one({"Чемпионат": '2022/2023'})
+    now = datetime.now()
+    date_min = []
+    for tour in calendar['Календарь'].values():
+        if tour['Закончен']:
+            continue
+        for date in tour['Матчи']:
+            try:
+                date_match = datetime.strptime(date.split('|')[0].replace('.', '-').strip(), '%d-%m-%Y %H:%M')
+            except Exception:
+                date_match = datetime.strptime(date.split()[0].replace('.', '-').strip() + ' 23:59', '%d-%m-%Y %H:%M')
+            if date.endswith('– : –') and now < date_match:
+                if date_match not in date_min:
+                    date_min.append(date_match)
+    date_min.sort()
+    return date_min[0]
+
+def get_start_end_tour(name, next_date):
+    country =  db[name]
+    calendar = country.find_one({"Чемпионат": '2022/2023'})
+    for name_tour, tour in calendar['Календарь'].items():
+        if tour['Закончен']:
+            continue
+        if next_date == tour['start']:
+            text = 'В этом туре\n\n' + ('\n\n').join(tour['Матчи'])
+        elif datetime.now() > tour['end']:
+            text = 'Тур закончен\n\n' + ('\n\n').join(tour['Матчи'])
+        else:
+            break
+        #img = Image.open("football-soccer1.png")
+        img = Image.open(f"{name}.png")
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.truetype("arkhip_font.ttf", 200)
+        _, _, w, _ = draw.textbbox((0, 0), f"{name_tour} \n\n", font=font)
+        draw.text(((img.width-w)/2, 40), f"{name_tour} \n\n",(0,0,0),font=font, align = "center")
+        font = ImageFont.truetype("arkhip_font.ttf", 100)
+        _, _, w, _ = draw.textbbox((0, 0),text, font=font)
+        #draw.text(((img.width-w)/2, 130),text,(20,34,69),font=font, align = "center")
+        draw.text(((img.width-w)/2, 400),text,(0,0,0),font=font, align = "center")
+        img.save(f'{name}1.png')
+        img.show()
+        return img
+        
+#get_start_end_tour('italy', get_next_date('italy'))
+get_start_end_tour('germany', get_next_date('germany'))
+#get_start_end_tour('england', get_next_date('england'))

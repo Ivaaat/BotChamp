@@ -1,16 +1,16 @@
 import requests
-from lxml import html, etree
+from lxml import html
 import telebot
-from telebot import types, util
+from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import time
 import logging
 from telebot import formatting
 from news_football_class import news_parse, get_one_news
-from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube
+from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv
 from xpath_ref_class import *
-from constants_class import mass_contry, mass_review, parse_site, mass_youtube, mass_site, list_name_site
-from championat_class import Calendar, Table, Team, add_db, get_tab, get_logo
+from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv
+from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
@@ -21,6 +21,9 @@ from testd import json_championat
 from user_mongo import add_user, view_users, get_push, get_user, get_list_user, set_push, add_field, delete_field, get_live
 from googletrans import Translator
 from datetime import datetime, timedelta
+from PIL import Image
+from PIL import ImageFont
+from PIL import ImageDraw 
 
 
 
@@ -33,14 +36,8 @@ bot.set_my_commands(
         telebot.types.BotCommand("start", "start_parse"),
     ],
 )
-base = MyBaseDB()
-# #with open(base.filename, "r", encoding = 'utf-8') as file:
-#             content = file.readlines()
-#             for i in range(1,len(content)):
-#                 send_user = re.findall(r'\d+', content[i])
-#                 bot.send_message(send_user[len(send_user)-1],"Вышло обновление. Жми /start")
 
-#bot.send_message(user_id,"Вышло обновление. Жми /start")
+bot.send_message(user_id,"Вышло обновление. Жми /start")
 @bot.message_handler(regexp='send')
 def userlist(message):
     user_list = get_list_user()
@@ -147,68 +144,60 @@ threading.Thread(target=news).start()
 
 
 def video(name):
-    add_db(name, '2022/2023')
-    translator = Translator()
-    if name in mass_youtube:
-        func_parse = bs4_youtube(mass_youtube[name])
+    if name in dict_youtube:
+        func_parse = bs4_youtube(dict_youtube[name])
+    elif name in dict_matchtv:
+        func_parse = youtube_matchtv(dict_matchtv[name])
     else:
-        func_parse = parse_for_push(mass_site[name])
+        func_parse = parse_for_push(dict_site[name])
     new_video_dict = func_parse
     for old_video in new_video_dict:
         break
-    db = client['json_champ']
-    country =  db[name]
-    calendar = country.find_one({"Чемпионат": '2022/2023'})
-    now = datetime.now()
-    date_min = []
-    for tour in calendar['Календарь'].values():
-        if tour['Закончен']:
-            continue
-        for date in tour['Матчи']:
-            try:
-                date_match = datetime.strptime(date.split('|')[0].replace('.', '-').strip(), '%d-%m-%Y %H:%M')
-            except Exception:
-                date_match = datetime.strptime(date.split()[0].replace('.', '-').strip() + ' 23:59', '%d-%m-%Y %H:%M')
-            #if not date.endswith('– : –') and now < date_match:\
-            if date.endswith('– : –') and now < date_match:
-                date_min.append(date_match)
-    date_min.sort()
-    for next_date in date_min:
-        time_sleep_ends_match = timedelta(hours=3)
-        time_sleep = next_date - now
+    add_db(name, '2022/2023')
+    next_date = get_next_date(name)
+    # pic = get_start_end_tour(name, next_date)
+    # if pic != None:
+    #     bot.send_photo(user_id, pic)
+    time_sleep_ends_match = timedelta(hours=3)
+    try:
+        time_sleep = next_date - datetime.now()
         time.sleep(time_sleep.total_seconds())
+        bot.send_message(user_id, str(f'{name}\nматч начался\n{datetime.now()}'))
         time.sleep(time_sleep_ends_match.seconds)
+        bot.send_message(user_id, str(f'{name}\nматч закончился! начался парсинг\n'))
         add_db(name, '2022/2023')
-        #country =  db[name]
-        #calendar = country.find_one({"Чемпионат": '2022/2023'})
-        while True:
-            ### Тут код парсинга
-            timer = 3600
-            list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
-            try:
-                new_video_dict = func_parse
-                for desc_video, ref in new_video_dict.items():
-                    if desc_video == old_video:
-                        break
-                    result = translator.translate(desc_video)
-                    if result.src == 'en':
-                        result = translator.translate(desc_video, dest='ru')
-                        desc_video = result.text
-                    for id in list_user_push_true:
-                        bot.send_message(id, f"{desc_video}\n{ref}")
-                old_video = desc_video
-                time.sleep(timer)
-            except Exception:
-                bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
-                time.sleep(timer)
-            if now > (next_date + timedelta(1)):
-                break
-for name in mass_youtube:
-    #threading.Thread(target=video, args=(name,)).start()
-    threading.Timer(1,video, [name]).start()
-for name in mass_site:
-    threading.Timer(1,video, [name]).start()
-#threading.Thread(target=video('england')).start()
+    except ValueError:
+        time.sleep(time_sleep_ends_match.seconds)
+    while True:
+        ### Тут код парсинга
+        timer = 1800
+        list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+        try:
+            new_video_dict = func_parse
+            for desc_video, ref in new_video_dict.items():
+                if desc_video == old_video:
+                    break
+                for id in list_user_push_true:
+                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
+                    bot.send_message(id, f"{desc_video}\n{ref}")
+        except Exception:
+            bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
+            time.sleep(timer)
+        old_video = desc_video
+        time.sleep(timer)
+        if datetime.now() > (next_date + timedelta(hours=13)):
+            break
+    bot.send_message(user_id, str(f'{name}\nпошла рекурсия\n'))
+    video(name)
+            
+# for name in mass_youtube:
+#     #threading.Thread(target=video, args=(name,)).start()
+#     threading.Timer(1,video, [name]).start()
+# for name in mass_site:
+#     threading.Timer(1,video, [name]).start()
+#threading.Timer(1, video, ['italy']).start()
+#threading.Timer(1, video, ['germany']).start()
+#threading.Timer(1,target=video('england')).start()
 #threading.Thread(target=video('germany')).start()
 
 # def push_live():
@@ -230,9 +219,6 @@ for name in mass_site:
 #         push = json_championat("push", message.text)
 
 # threading.Thread(target=push_live).start()
-
-def user(message):
-    bot.send_message(user_id,base.open())
 
 def user_verif(message):
     word_verif = "Спартак"
@@ -290,6 +276,12 @@ def callback_query(call):
         bot.clear_step_handler_by_chat_id(chat_id = call.message.chat.id)
         button_country_news(call.message)
 
+@bot.callback_query_handler(func=lambda call: call.data == 'Матч ТВ')
+def callback_query(call):
+        bot.answer_callback_query(call.id, "Главное меню")
+        bot.clear_step_handler_by_chat_id(chat_id = call.message.chat.id)
+        button_country_news(call.message)
+
 #Создаем три кнопки "Чемпионаты🏆" и "Новости📰  'Обзоры⚽' после вызова старта"
 def table_text(message, back = "" ):
     markup = types.ReplyKeyboardMarkup()
@@ -301,9 +293,6 @@ def table_text(message, back = "" ):
             set_push(message.chat.id, False)
             bot.send_message(message.chat.id,'Уведомлений не будет!')
         button_country_news(message)
-    elif message.text == '/user':
-        user(message)
-        return button_country_news(message)
     elif 'Чемпионаты🏆' in [message.text, back]:
         msg = bot.send_message(message.chat.id, 'Выбери чемпионат', reply_markup=champ_keyboard())
         bot.register_next_step_handler(msg, calendar_and_table)
@@ -334,6 +323,13 @@ def table_text(message, back = "" ):
         markup.add(button_today, button_live)
         msg = bot.send_message(message.chat.id, 'Матчи', reply_markup=markup)
         bot.register_next_step_handler(msg, today_or_live)
+    elif message.text == "update":
+        for name in mass_contry.values():
+            add_db(name, '2022/2023')
+            time.sleep(1)
+        bot.send_message(message.chat.id, 'Обновил таблицы')
+        bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
+        button_country_news(message)
     else:
         bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
         button_country_news(message)
@@ -444,9 +440,6 @@ def create_table(message, country_button):
         bot.send_message(message.chat.id, f'{country_button}. Плей-офф! \n\n{world_playoff()}')
         return calendar_and_table(message, back = country_button)
     else:
-        #table = Table(mass_contry.get(country_button))
-        #mass = table.get_table()
-        #add_db(mass_contry[country_button], '2022/2023')
         mass = get_tab(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
@@ -474,11 +467,8 @@ def result_team(message, dict_team, country_button):
         markup.add(InlineKeyboardButton("Главное меню", callback_data="back"))
         text = message.text[4:message.text.find('О', 5)].strip()
         if text in dict_team:
-            #team = Team(text, dict_team)
-            #team.get_logo()
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
-                #dict_team['Лого'][text],
                 get_logo(mass_contry[country_button], text),
                 caption = formatting.mbold('\n\n'.join(dict_team[text]['Последние результаты\n'])),
                 parse_mode='MarkdownV2',
@@ -491,8 +481,6 @@ def result_team(message, dict_team, country_button):
             calendar_and_table(message, back = country_button)
         else:
             raise KeyError("Выбери команду:")
-            #msg = bot.send_message(message.chat.id, 'Выбери команду:')
-            #bot.register_next_step_handler(msg, result_team, dict_team, country_button)
     except Exception as e:
         msg = bot.send_message(message.chat.id, e)
         bot.register_next_step_handler(msg, result_team, dict_team, country_button)
@@ -505,41 +493,44 @@ def create_calendar(message, country_button):
         return calendar_and_table(message, back = country_button)
     elif country_button in mass_contry:
         country = mass_contry.get(country_button)
-        calendar = Calendar(country)
-        dict_calendar = calendar.get_calendar()
+        dict_calendar = get_cal(country,'2022/2023')
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
         for key in dict_calendar:
-            button = types.KeyboardButton(key)
+            start = str(dict_calendar[key]['start'])
+            end = str(dict_calendar[key]['end'])
+            the_end =""
+            if dict_calendar[key]['Закончен']:
+                the_end = '| Закончен'
+            button = types.KeyboardButton(('{} | {} - {} {}').format(key, start[:10], end[:10], the_end))
             markup.add(button)
         msg = bot.send_message(message.chat.id,
                             f'{country_button} Выбери тур, чтобы узнать результаты:',
                             reply_markup=markup
                             )
-        bot.register_next_step_handler(msg, view_tour, dict_calendar, calendar.tour, country_button)
+        bot.register_next_step_handler(msg, view_tour, dict_calendar, country_button)
     else:
         msg = bot.send_message(message.chat.id, 'Выбери чемпионат:[eq')
         bot.register_next_step_handler(msg, create_calendar)
 
 #Обработка нажатия на кнопку с туром
-def view_tour (message, dict_calendar, tour, country_button):
+def view_tour (message, dict_calendar, country_button):
     try:
-        if message.text in dict_calendar:
+        text = message.text[:6].strip()
+        if text in dict_calendar:
+            start = str(dict_calendar[text]['start'])
+            end = str(dict_calendar[text]['end'])
             bot.delete_message(message.chat.id, message.message_id)
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("Главное меню", callback_data="back"))
-            asd = f'{message.text} \n\n'
-            for y in range(0, tour):
-                asd += '{} |\n| {} | {} \n\n'.format(dict_calendar[message.text][0][y],
-                                                dict_calendar[message.text][1][y],
-                                                dict_calendar[message.text][2][y]
-                                                )
+            #markup.add(InlineKeyboardButton("Матч ТВ", url = 'https://www.youtube.com/@MatchTV/videos'))
+            asd = f'{text} | {start} - {end} | \n\n' + '\n\n'.join(dict_calendar[text]['Матчи'])
             msg = bot.send_message(message.chat.id,
                             formatting.format_text(formatting.mbold(asd)),
                             parse_mode = 'MarkdownV2',
                             reply_markup = markup)
-            bot.register_next_step_handler(msg, view_tour, dict_calendar, tour, country_button)
+            bot.register_next_step_handler(msg, view_tour, dict_calendar, country_button)
         elif message.text == 'Назад':
             bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
             calendar_and_table(message, back = country_button)
@@ -552,7 +543,7 @@ def view_tour (message, dict_calendar, tour, country_button):
         msg = bot.send_message(message.chat.id, f'Дорогой, {message.chat.first_name}. ✅Выбери тур!\n\n\
     ✅Или нажми назад, чтобы выбрать чемпионат\n\
     ✅Или нажми главное меню, чтобы выбрать другую категорию\n ')
-        bot.register_next_step_handler(msg, view_tour, dict_calendar, tour, country_button)
+        bot.register_next_step_handler(msg, view_tour, dict_calendar, country_button)
 
 #получаем новости из чемпионата
 def get_news(message,ref_dict):
