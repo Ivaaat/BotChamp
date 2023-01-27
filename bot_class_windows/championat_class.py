@@ -5,9 +5,13 @@ from constants_class import mass_contry, mass_review, parse_site
 import time
 from pymongo import MongoClient
 from datetime import datetime, timedelta
-from PIL import Image
+import locale
+from PIL import Image,  ImageFilter
 from PIL import ImageFont
-from PIL import ImageDraw 
+from PIL import ImageDraw
+from io import BytesIO
+
+locale.setlocale(locale.LC_ALL, "")
 
 sess = requests.Session()
 sess.headers.update({
@@ -230,8 +234,10 @@ def add_db(name, name_champ):
 def get_logo(db_name, name):
     country =  db[db_name]
     logo = country.find_one({"Чемпионат": '2022/2023'})
-    return logo["Лого"][name]
-
+    try:
+        return logo["Лого"][name]
+    except KeyError:
+        return logo["Лого"]['Шальке-04']
 def get_cal(name, name_champ):
     country =  db[name]
     calendar = country.find_one({"Чемпионат": name_champ})
@@ -313,32 +319,97 @@ def get_next_date(name):
     date_min.sort()
     return date_min[0]
 
-def get_start_end_tour(name, next_date):
+def get_start_end_tour(name, next_date, rgb=(255,255,255)):
     country =  db[name]
     calendar = country.find_one({"Чемпионат": '2022/2023'})
     for name_tour, tour in calendar['Календарь'].items():
         if tour['Закончен']:
             continue
-        if next_date == tour['start']:
-            text = 'В этом туре\n\n' + ('\n\n').join(tour['Матчи'])
+        #if next_date == tour['start']:
+        if next_date.date() == tour['start'].date():
+            dict_match = {}
+            for name_match in tour['Матчи']:
+                date_match = datetime.strptime(name_match.split('|')[0].split()[0].replace('.', '-'), '%d-%m-%Y').strftime('%d %B, %A').upper()
+                time_match = name_match.split('|')[0].split()[1]
+                if 'Шальке' in name_match:
+                    asdx = name_match.split('|')[1].strip().replace('-', ' ',1)
+                    #match = asdx.replace('-', time_match)
+                    clear_name = asdx.split("-")
+                    
+                else:
+                    #match = name_match.split('|')[1].strip().replace('-', time_match)
+                    clear_name = name_match.split('|')[1].split("-")
+                if date_match not in dict_match:
+                    list_match_logo = []
+                list_match_logo.append(time_match)
+                for name_team in clear_name:
+                    list_match_logo.append({name_team.strip() : get_logo(name, name_team.strip())})
+                dict_match[date_match] = list_match_logo
+            text = ('\n\n').join(tour['Матчи'])
         elif datetime.now() > tour['end']:
             text = 'Тур закончен\n\n' + ('\n\n').join(tour['Матчи'])
         else:
-            break
-        #img = Image.open("football-soccer1.png")
-        img = Image.open(f"{name}.png")
+            continue
+        folder_name = 'bot_class_windows'
+        #img = Image.open(f"pic\{name}.png")
+        img = Image.open(f"{folder_name}\pic\\football.jpg")
         draw = ImageDraw.Draw(img)
-        font = ImageFont.truetype("arkhip_font.ttf", 200)
-        _, _, w, _ = draw.textbbox((0, 0), f"{name_tour} \n\n", font=font)
-        draw.text(((img.width-w)/2, 40), f"{name_tour} \n\n",(0,0,0),font=font, align = "center")
-        font = ImageFont.truetype("arkhip_font.ttf", 100)
-        _, _, w, _ = draw.textbbox((0, 0),text, font=font)
-        #draw.text(((img.width-w)/2, 130),text,(20,34,69),font=font, align = "center")
-        draw.text(((img.width-w)/2, 400),text,(0,0,0),font=font, align = "center")
-        img.save(f'{name}1.png')
+        font = ImageFont.truetype(f"{folder_name}\\ttf\gilroy-black.ttf", 30)
+        logo_champ = Image.open(f"{folder_name}\pic\pngegg.png")
+        background_champ = img.crop((0, 0, 100, 100))
+        foreground_champ = logo_champ.resize ((100,100))
+        img_resize_champ = Image.alpha_composite(background_champ.convert('RGBA'), foreground_champ.convert('RGBA'))
+        img.paste(img_resize_champ, (0, 0))
+        j = 0
+        logo_width = 50
+        logo_height = 50
+        shift = 5
+        _, _, w, _ = draw.textbbox((0, 0), name_tour, font=font)
+        draw.text((int((img.width-w))/2, j), name_tour , rgb, font=font, align = "center")
+        for date, match_url in dict_match.items():
+            j += 50
+            _, _, w, _ = draw.textbbox((0, 0), date, font=font)
+            draw.text((int((img.width-w))/2, j), date , (0,0,0), font=font, align = "center")
+            e = 0
+            for match_list in match_url:
+                font = ImageFont.truetype(f"{folder_name}\\ttf\gilroy-black.ttf", 30)
+                try:
+                    for match, url in match_list.items():
+                        if e == 0:
+                            response_left_team = sess.get(url)
+                            logo_left_team = Image.open(BytesIO(response_left_team.content))
+                            coord_x_left = int((img.width/2)-time_width)
+                            _, _, w, _ = draw.textbbox((0, 0), match, font=font)
+                            draw.text((coord_x_left - w - shift, j), match , rgb, font=font, align = "center")
+                            background_left_team = img.crop((coord_x_left - logo_width - w - shift, j - 5, coord_x_left - w - shift, j + 45))
+                            foreground = logo_left_team.resize ((logo_width,logo_height))
+                            img_resize = Image.alpha_composite(background_left_team.convert('RGBA'), foreground.convert('RGBA'))
+                            img.paste(img_resize, (coord_x_left - logo_width - w - shift, j - 5))
+                            e = 1
+                        elif e == 1:
+                            response_right_team = sess.get(url)
+                            logo_right_team = Image.open(BytesIO(response_right_team.content))
+                            coord_x_right = int((img.width/2)+time_width)
+                            _, _, w, _ = draw.textbbox((0, 0), match, font=font)
+                            draw.text((coord_x_right + shift, j), match , rgb, font=font, align = "center")
+                            background_right_team = img.crop((coord_x_right + w + shift, j - 5, coord_x_right + w + logo_width + shift, j + 45))
+                            foreground = logo_right_team.resize ((logo_width,logo_height))
+                            img_resize = Image.alpha_composite(background_right_team.convert('RGBA'), foreground.convert('RGBA'))
+                            img.paste(img_resize, (coord_x_right + w + shift, j - 5))
+                            e = 0
+                except Exception:
+                        j += 50
+                        font = ImageFont.truetype(f"{folder_name}\\ttf\gilroy-black.ttf", 20)
+                        _, _, w, _ = draw.textbbox((0, 0), match_list, font=font)
+                        draw.text((int((img.width-w))/2, j), match_list , rgb, font=font, align = "center")
+                        time_width = w/2
+        img.save(f'{folder_name}\pic\\football{name}1.png')
         img.show()
         return img
         
 #get_start_end_tour('italy', get_next_date('italy'))
-get_start_end_tour('germany', get_next_date('germany'))
+#get_start_end_tour('russiapl', get_next_date('russiapl'))
+#get_start_end_tour('germany', get_next_date('germany'))
+#get_start_end_tour('spain', get_next_date('spain'))
 #get_start_end_tour('england', get_next_date('england'))
+#get_start_end_tour('france', get_next_date('france'))

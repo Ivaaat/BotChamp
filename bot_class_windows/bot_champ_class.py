@@ -145,15 +145,15 @@ threading.Thread(target=news).start()
 
 def video(name):
     if name in dict_youtube:
-        func_parse = bs4_youtube(dict_youtube[name])
+        func_parse = bs4_youtube
+        arg = dict_youtube[name]
     elif name in dict_matchtv:
-        func_parse = youtube_matchtv(dict_matchtv[name])
+        func_parse = youtube_matchtv
+        arg = dict_matchtv[name]
     else:
-        func_parse = parse_for_push(dict_site[name])
-    new_video_dict = func_parse
-    for old_video in new_video_dict:
-        break
-    add_db(name, '2022/2023')
+        func_parse = parse_for_push
+        arg = dict_site[name]
+    old_video_dict = func_parse(arg)
     next_date = get_next_date(name)
     # pic = get_start_end_tour(name, next_date)
     # if pic != None:
@@ -168,35 +168,43 @@ def video(name):
         add_db(name, '2022/2023')
     except ValueError:
         time.sleep(time_sleep_ends_match.seconds)
-    while True:
+        add_db(name, '2022/2023')
+    while datetime.now() < (next_date + timedelta(hours=13)):
         ### Тут код парсинга
         timer = 1800
         list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
         try:
-            new_video_dict = func_parse
+            new_video_dict = func_parse(arg)
             for desc_video, ref in new_video_dict.items():
-                if desc_video == old_video:
+                if desc_video in old_video_dict:
                     break
                 for id in list_user_push_true:
                     bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
                     bot.send_message(id, f"{desc_video}\n{ref}")
+                old_video_dict[desc_video] = ref
         except Exception:
             bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
             time.sleep(timer)
-        old_video = desc_video
         time.sleep(timer)
-        if datetime.now() > (next_date + timedelta(hours=13)):
-            break
     bot.send_message(user_id, str(f'{name}\nпошла рекурсия\n'))
     video(name)
             
-# for name in mass_youtube:
+# for name in dict_youtube:
 #     #threading.Thread(target=video, args=(name,)).start()
 #     threading.Timer(1,video, [name]).start()
-# for name in mass_site:
+# for name in dict_site:
 #     threading.Timer(1,video, [name]).start()
+# for name in dict_matchtv:
+#     threading.Timer(1,video, [name]).start()
+for name in mass_contry.values():
+     threading.Timer(1,video, [name]).start()
+
+    
 #threading.Timer(1, video, ['italy']).start()
 #threading.Timer(1, video, ['germany']).start()
+#threading.Timer(1, video, ['england']).start()
+#threading.Timer(1, video, ['russiapl']).start()
+#threading.Timer(1, video, ['spain']).start()
 #threading.Timer(1,target=video('england')).start()
 #threading.Thread(target=video('germany')).start()
 
@@ -326,7 +334,7 @@ def table_text(message, back = "" ):
     elif message.text == "update":
         for name in mass_contry.values():
             add_db(name, '2022/2023')
-            time.sleep(1)
+            time.sleep(5)
         bot.send_message(message.chat.id, 'Обновил таблицы')
         bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
         button_country_news(message)
