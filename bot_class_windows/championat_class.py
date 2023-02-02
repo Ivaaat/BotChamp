@@ -6,7 +6,7 @@ import time
 from pymongo import MongoClient
 from datetime import datetime, timedelta
 import locale
-from PIL import Image,  ImageFilter
+from PIL import Image,  ImageFilter, ImageEnhance
 from PIL import ImageFont
 from PIL import ImageDraw
 from io import BytesIO
@@ -325,8 +325,9 @@ def get_start_end_tour(name, next_date, rgb=(255,255,255)):
     for name_tour, tour in calendar['Календарь'].items():
         if tour['Закончен']:
             continue
-        #if next_date == tour['start']:
-        if next_date.date() == tour['start'].date():
+        next_date = tour['end']
+        if next_date == tour['start']:
+        #if next_date.date() == tour['start'].date():
             dict_match = {}
             for name_match in tour['Матчи']:
                 date_match = datetime.strptime(name_match.split('|')[0].split()[0].replace('.', '-'), '%d-%m-%Y').strftime('%d %B, %A').upper()
@@ -345,9 +346,23 @@ def get_start_end_tour(name, next_date, rgb=(255,255,255)):
                 for name_team in clear_name:
                     list_match_logo.append({name_team.strip() : get_logo(name, name_team.strip())})
                 dict_match[date_match] = list_match_logo
-            text = ('\n\n').join(tour['Матчи'])
-        elif datetime.now() > tour['end']:
-            text = 'Тур закончен\n\n' + ('\n\n').join(tour['Матчи'])
+        #elif datetime.now() > tour['end']:
+        elif next_date == tour['end']:
+            dict_match = {}
+            for name_match in tour['Матчи']:
+                date_match = datetime.strptime(name_match.split('|')[0].split()[0].replace('.', '-'), '%d-%m-%Y').strftime('%d %B, %A').upper()
+                results_match = name_match.split('|')[2].strip()
+                if 'Шальке' in name_match:
+                    asdx = name_match.split('|')[1].strip().replace('-', ' ',1)
+                    clear_name = asdx.split("-")
+                else:
+                    clear_name = name_match.split('|')[1].split("-")
+                if date_match not in dict_match:
+                    list_match_logo = []
+                list_match_logo.append(results_match)
+                for name_team in clear_name:
+                    list_match_logo.append({name_team.strip() : get_logo(name, name_team.strip())})
+                dict_match[date_match] = list_match_logo
         else:
             continue
         folder_name = 'bot_class_windows'
@@ -413,3 +428,44 @@ def get_start_end_tour(name, next_date, rgb=(255,255,255)):
 #get_start_end_tour('spain', get_next_date('spain'))
 #get_start_end_tour('england', get_next_date('england'))
 #get_start_end_tour('france', get_next_date('france'))
+
+def news_pic(news):
+    folder_name = 'bot_class_windows'
+    response_left_team = sess.get(news[0])
+    news_pic = Image.open(BytesIO(response_left_team.content))
+    news_pic = news_pic.resize ((735,490))
+    news_pic.convert("RGBA")
+    enhancer = ImageEnhance.Brightness(news_pic)
+    news_pic = enhancer.enhance(0.65)
+    draw = ImageDraw.Draw(news_pic)
+    font_size = 35
+    #news_text = news[1].split(' ', 1)[1]
+    news_text = news[1]
+    font = ImageFont.truetype(f"{folder_name}\\ttf\gilroy-black.ttf", font_size)
+    _, _, w, h = draw.textbbox((0, 0), news_text, font=font)
+    if w > news_pic.width:
+        list_text= []
+        list_text1 = news_text.split()
+        a = 4
+        for j in range(0,len(list_text1),4):
+            list_text.append(' '.join(list_text1[j:a]))
+            a+=4
+        i = 0
+        for text in list_text:
+            _, _, w, h = draw.textbbox((0, 0), text, font=font)
+            draw.text((int((news_pic.width-w))/2, (int((news_pic.height-h))/2) + i), text, font=font, align = "center")
+            i+=font_size
+        return news_pic
+    list_symb = ['.', ',', '-']
+    for symb in list_symb:
+        if news_text.find(symb) != -1:
+            list_text = news_text.split(symb, 1)
+            i = 0
+            for text in list_text:
+                _, _, w, h = draw.textbbox((0, 0), text, font=font)
+                draw.text((int((news_pic.width-w))/2, (int((news_pic.height-h))/2) + i), text, font=font, align = "center")
+                i+=font_size
+            return news_pic
+    draw.text((int((news_pic.width-w))/2, int((news_pic.height-h))/2), news_text, font=font, align = "center")
+    return news_pic
+    

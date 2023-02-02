@@ -10,7 +10,7 @@ from news_football_class import news_parse, get_one_news
 from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv
 from xpath_ref_class import *
 from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv
-from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour
+from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour, news_pic
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
@@ -123,19 +123,28 @@ def news():
                 news_ref = tree.xpath('//a[@class="news-item__title _important"]//@href')
                 new_news = get_one_news(news_ref[0], news_text[0])
                 if new_news[1][:20] != old_news[1][:20]:
+                    pic = news_pic([new_news[0],news_text[0]])
+                    inst_view = f'https://t.me/iv?url=https%3A%2F%2Fwww.championat.com{news_ref[0]}&rhash=f610f320a497f8'
+                    markup = InlineKeyboardMarkup()
+                    #markup.add(InlineKeyboardButton(news_text[0], url='https://www.championat.com' + news_ref[0]))
+                    markup.add(InlineKeyboardButton(news_text[0], url=inst_view))
                     old_news = new_news
-                    if len(new_news[1]) >= 1024:
-                        num_symb =new_news[1][:1024].rfind('.') + 1
-                        for id in list_user_push_true:
-                            bot.send_photo(id,
-                                new_news[0],
-                                caption=new_news[1][:num_symb])
-                        for x in range(num_symb, len(new_news[1]), 1024):
-                                for id in list_user_push_true:
-                                    bot.send_message(id, new_news[1][x:x+1024])
-                    else:
-                        for id in list_user_push_true:
-                            bot.send_photo(id, new_news[0], caption=new_news[1])
+                    for id in list_user_push_true:
+                        bot.send_photo(id,pic,reply_markup = markup)
+                    # if len(new_news[1]) >= 1024:
+                    #     num_symb =new_news[1][:1024].rfind('.') + 1
+                    #     for id in list_user_push_true:
+                    #         bot.send_photo(id,
+                    #             pic,#new_news[0],
+                    #             #caption=new_news[1][:num_symb])
+                    #             caption=formatting.mspoiler(new_news[1][:num_symb]), parse_mode='MarkdownV2')
+                    #     for x in range(num_symb, len(new_news[1]), 1024):
+                    #             for id in list_user_push_true:
+                    #                 #bot.send_message(id, new_news[1][x:x+1024])
+                    #                 bot.send_message(id, formatting.mspoiler(new_news[1][x:x+1024]), parse_mode='MarkdownV2')
+                    # else:
+                    #     for id in list_user_push_true:
+                    #         bot.send_photo(id, pic,caption=new_news[1])#new_news[0], caption=new_news[1])
             time.sleep(timer)
         except Exception as e:
             bot.send_message(user_id, str('def news\n'))
@@ -334,6 +343,7 @@ def table_text(message, back = "" ):
     elif message.text == "update":
         for name in mass_contry.values():
             add_db(name, '2022/2023')
+            bot.send_message(message.chat.id, f'Обновил {name}')
             time.sleep(5)
         bot.send_message(message.chat.id, 'Обновил таблицы')
         bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
@@ -554,21 +564,22 @@ def view_tour (message, dict_calendar, country_button):
         bot.register_next_step_handler(msg, view_tour, dict_calendar, country_button)
 
 #получаем новости из чемпионата
-def get_news(message,ref_dict):
+def get_news(message, ref_dict):
     try:
         if message.text in ref_dict :
             axzc = ref_dict.get(message.text)
             list_photo_text = get_one_news(axzc, message.text[5:])
+            pic = news_pic([list_photo_text[0], message.text])
             if len(list_photo_text[1]) >= 1024:
                 num_symb =list_photo_text[1][:1024].rfind('.') + 1
                 bot.send_photo(message.chat.id,
-                    list_photo_text[0],
+                    pic,#list_photo_text[0],
                     caption=list_photo_text[1][:num_symb])
                 for x in range(num_symb, len(list_photo_text[1]), 1024):
                     msg = bot.send_message(message.chat.id, list_photo_text[1][x:x+1024])
             else:
                 msg = bot.send_photo(message.chat.id,
-                    list_photo_text[0],
+                    list_photo_text[0],#pic,#list_photo_text[0],
                     caption=list_photo_text[1],
                 )
             bot.register_next_step_handler(msg, get_news,ref_dict)
