@@ -9,7 +9,7 @@ from telebot import formatting
 from news_football_class import news_parse, get_one_news, rss_news
 from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv
 from xpath_ref_class import *
-from constants_class import mass_contry, mass_review, parse_site, rss_link, dict_youtube, dict_site, list_name_site, dict_matchtv
+from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv
 from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour, news_pic
 from world_champ import WorldCup, world_playoff
 import threading
@@ -119,7 +119,21 @@ def news():
                     markup.add(InlineKeyboardButton(title, url=inst_view))
                     old_news = new_news
                     for id in list_user_push_true:
-                        message = bot.send_photo(id,pic,reply_markup = markup)
+                        bot.send_photo(id,pic,reply_markup = markup)
+                    # if len(new_news[1]) >= 1024:
+                    #     num_symb =new_news[1][:1024].rfind('.') + 1
+                    #     for id in list_user_push_true:
+                    #         bot.send_photo(id,
+                    #             pic,#new_news[0],
+                    #             #caption=new_news[1][:num_symb])
+                    #             caption=formatting.mspoiler(new_news[1][:num_symb]), parse_mode='MarkdownV2')
+                    #     for x in range(num_symb, len(new_news[1]), 1024):
+                    #             for id in list_user_push_true:
+                    #                 #bot.send_message(id, new_news[1][x:x+1024])
+                    #                 bot.send_message(id, formatting.mspoiler(new_news[1][x:x+1024]), parse_mode='MarkdownV2')
+                    # else:
+                    #     for id in list_user_push_true:
+                    #         bot.send_photo(id, pic,caption=new_news[1])#new_news[0], caption=new_news[1])
             time.sleep(timer)
         except Exception as e:
             bot.send_message(user_id, str('def news\n'))
@@ -164,9 +178,7 @@ def video(name):
                     break
                 for id in list_user_push_true:
                     bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
-                    message = bot.send_message(id, f"{desc_video}\n{ref}")
-                    if id < 0:
-                            bot.pin_chat_message(id, message.message_id)
+                    bot.send_message(id, f"{desc_video}\n{ref}")
                 old_video_dict[desc_video] = ref
         except Exception:
             bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
