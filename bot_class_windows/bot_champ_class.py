@@ -6,10 +6,10 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import time
 import logging
 from telebot import formatting
-from news_football_class import news_parse, get_one_news
+from news_football_class import news_parse, get_one_news, rss_news
 from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv
 from xpath_ref_class import *
-from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv
+from constants_class import mass_contry, mass_review, parse_site, rss_link, dict_youtube, dict_site, list_name_site, dict_matchtv
 from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour, news_pic
 from world_champ import WorldCup, world_playoff
 import threading
@@ -19,7 +19,7 @@ from pymongo import MongoClient
 import re
 from testd import json_championat
 from user_mongo import add_user, view_users, get_push, get_user, get_list_user, set_push, add_field, delete_field, get_live
-from googletrans import Translator
+#from googletrans import Translator
 from datetime import datetime, timedelta
 from PIL import Image
 from PIL import ImageFont
@@ -100,51 +100,26 @@ def parse_for_push(url):
 
 
 def news():
-    parse_site1 = f'{parse_site}/news/football/1.html'
-    #parse_site1 = "https://www.championat.com/rss/news/football/"
-    response = sess.get(parse_site1)
-    #tree = etree.fromstring(bytes(bytearray(response.text, encoding='utf-8')))
-    tree = html.fromstring(response.text)
-    # news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href')
-    news_text = tree.xpath('//a[@class="news-item__title _important"]/text()')
-    news_ref = tree.xpath('//a[@class="news-item__title _important"]//@href')
-    old_news = get_one_news(news_ref[0], news_text[0])
+    response = sess.get(rss_link)
+    title, link, logo = rss_news(response)
+    old_news = title
     while True:
         try:
             timer = 120
             list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
             if len(list_user_push_true) > 0:
-                parse_site1 = f'{parse_site}/news/football/1.html'
-                response = sess.get(parse_site1)
-                tree = html.fromstring(response.text)
-                # news_text = tree.xpath('//div[@class="news _all"]//a[1]/text()')
-                # news_ref = tree.xpath('//div[@class="news _all"]//a[1]/@href')
-                news_text = tree.xpath('//a[@class="news-item__title _important"]/text()')
-                news_ref = tree.xpath('//a[@class="news-item__title _important"]//@href')
-                new_news = get_one_news(news_ref[0], news_text[0])
-                if new_news[1][:20] != old_news[1][:20]:
-                    pic = news_pic([new_news[0],news_text[0]])
-                    inst_view = f'https://t.me/iv?url=https%3A%2F%2Fwww.championat.com{news_ref[0]}&rhash=f610f320a497f8'
+                response = sess.get(rss_link)
+                title, link, logo = rss_news(response)
+                new_news = title
+                if new_news != old_news:
+                    new_news = old_news
+                    pic = news_pic(logo, title)
+                    inst_view = f'https://t.me/iv?url=https%3A%2F%2F{link}&rhash=f610f320a497f8'
                     markup = InlineKeyboardMarkup()
-                    #markup.add(InlineKeyboardButton(news_text[0], url='https://www.championat.com' + news_ref[0]))
-                    markup.add(InlineKeyboardButton(news_text[0], url=inst_view))
+                    markup.add(InlineKeyboardButton(title, url=inst_view))
                     old_news = new_news
                     for id in list_user_push_true:
-                        bot.send_photo(id,pic,reply_markup = markup)
-                    # if len(new_news[1]) >= 1024:
-                    #     num_symb =new_news[1][:1024].rfind('.') + 1
-                    #     for id in list_user_push_true:
-                    #         bot.send_photo(id,
-                    #             pic,#new_news[0],
-                    #             #caption=new_news[1][:num_symb])
-                    #             caption=formatting.mspoiler(new_news[1][:num_symb]), parse_mode='MarkdownV2')
-                    #     for x in range(num_symb, len(new_news[1]), 1024):
-                    #             for id in list_user_push_true:
-                    #                 #bot.send_message(id, new_news[1][x:x+1024])
-                    #                 bot.send_message(id, formatting.mspoiler(new_news[1][x:x+1024]), parse_mode='MarkdownV2')
-                    # else:
-                    #     for id in list_user_push_true:
-                    #         bot.send_photo(id, pic,caption=new_news[1])#new_news[0], caption=new_news[1])
+                        message = bot.send_photo(id,pic,reply_markup = markup)
             time.sleep(timer)
         except Exception as e:
             bot.send_message(user_id, str('def news\n'))
@@ -189,7 +164,9 @@ def video(name):
                     break
                 for id in list_user_push_true:
                     bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
-                    bot.send_message(id, f"{desc_video}\n{ref}")
+                    message = bot.send_message(id, f"{desc_video}\n{ref}")
+                    if id < 0:
+                            bot.pin_chat_message(id, message.message_id)
                 old_video_dict[desc_video] = ref
         except Exception:
             bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
@@ -208,6 +185,7 @@ def video(name):
 for name in mass_contry.values():
      threading.Timer(1,video, [name]).start()
 
+#threading.Timer(1, video, ['france']).start()
     
 #threading.Timer(1, video, ['italy']).start()
 #threading.Timer(1, video, ['germany']).start()

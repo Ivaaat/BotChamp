@@ -429,9 +429,9 @@ def get_start_end_tour(name, next_date, rgb=(255,255,255)):
 #get_start_end_tour('england', get_next_date('england'))
 #get_start_end_tour('france', get_next_date('france'))
 
-def news_pic(news):
+def news_pic(logo_news, text_news):
     folder_name = 'bot_class_windows'
-    response_left_team = sess.get(news[0])
+    response_left_team = sess.get(logo_news)
     news_pic = Image.open(BytesIO(response_left_team.content))
     news_pic = news_pic.resize ((735,490))
     news_pic.convert("RGBA")
@@ -440,12 +440,11 @@ def news_pic(news):
     draw = ImageDraw.Draw(news_pic)
     font_size = 35
     #news_text = news[1].split(' ', 1)[1]
-    news_text = news[1]
     font = ImageFont.truetype(f"{folder_name}\\ttf\gilroy-black.ttf", font_size)
-    _, _, w, h = draw.textbbox((0, 0), news_text, font=font)
+    _, _, w, h = draw.textbbox((0, 0), text_news, font=font)
     if w > news_pic.width:
         list_text= []
-        list_text1 = news_text.split()
+        list_text1 = text_news.split()
         a = 4
         for j in range(0,len(list_text1),4):
             list_text.append(' '.join(list_text1[j:a]))
@@ -458,14 +457,14 @@ def news_pic(news):
         return news_pic
     list_symb = ['.', ',', '-']
     for symb in list_symb:
-        if news_text.find(symb) != -1:
-            list_text = news_text.split(symb, 1)
+        if text_news.find(symb) != -1:
+            list_text = text_news.split(symb, 1)
             i = 0
             for text in list_text:
                 _, _, w, h = draw.textbbox((0, 0), text, font=font)
                 draw.text((int((news_pic.width-w))/2, (int((news_pic.height-h))/2) + i), text, font=font, align = "center")
                 i+=font_size
             return news_pic
-    draw.text((int((news_pic.width-w))/2, int((news_pic.height-h))/2), news_text, font=font, align = "center")
+    draw.text((int((news_pic.width-w))/2, int((news_pic.height-h))/2), text_news, font=font, align = "center")
     return news_pic
     
