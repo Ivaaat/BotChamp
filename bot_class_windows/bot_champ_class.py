@@ -112,7 +112,6 @@ def news():
                 title, link, logo = rss_news(response)
                 new_news = title
                 if new_news != old_news:
-                    new_news = old_news
                     pic = news_pic(logo, title)
                     inst_view = f'https://t.me/iv?url=https%3A%2F%2F{link}&rhash=f610f320a497f8'
                     markup = InlineKeyboardMarkup()
