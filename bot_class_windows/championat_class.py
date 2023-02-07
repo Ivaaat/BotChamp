@@ -439,8 +439,6 @@ def news_pic(logo_news, text_news):
     news_pic = enhancer.enhance(0.65)
     draw = ImageDraw.Draw(news_pic)
     font_size = 35
-    #news_text = news[1].split(' ', 1)[1]
-    news_text = news[1]
     font = ImageFont.truetype(f"{folder_name}\\ttf\gilroy-black.ttf", font_size)
     _, _, w, h = draw.textbbox((0, 0), text_news, font=font)
     if w > news_pic.width:

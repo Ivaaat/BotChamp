@@ -9,7 +9,7 @@ from telebot import formatting
 from news_football_class import news_parse, get_one_news, rss_news
 from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv
 from xpath_ref_class import *
-from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv
+from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv, rss_link
 from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour, news_pic
 from world_champ import WorldCup, world_playoff
 import threading
@@ -119,21 +119,6 @@ def news():
                     old_news = new_news
                     for id in list_user_push_true:
                         bot.send_photo(id,pic,reply_markup = markup)
-                    # if len(new_news[1]) >= 1024:
-                    #     num_symb =new_news[1][:1024].rfind('.') + 1
-                    #     for id in list_user_push_true:
-                    #         bot.send_photo(id,
-                    #             pic,#new_news[0],
-                    #             #caption=new_news[1][:num_symb])
-                    #             caption=formatting.mspoiler(new_news[1][:num_symb]), parse_mode='MarkdownV2')
-                    #     for x in range(num_symb, len(new_news[1]), 1024):
-                    #             for id in list_user_push_true:
-                    #                 #bot.send_message(id, new_news[1][x:x+1024])
-                    #                 bot.send_message(id, formatting.mspoiler(new_news[1][x:x+1024]), parse_mode='MarkdownV2')
-                    # else:
-                    #     for id in list_user_push_true:
-                    #         bot.send_photo(id, pic,caption=new_news[1])#new_news[0], caption=new_news[1])
-            time.sleep(timer)
         except Exception as e:
             bot.send_message(user_id, str('def news\n'))
             time.sleep(timer)
@@ -176,8 +161,10 @@ def video(name):
                 if desc_video in old_video_dict:
                     break
                 for id in list_user_push_true:
-                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
+                    message = bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
                     bot.send_message(id, f"{desc_video}\n{ref}")
+                    if id < 0:
+                        bot.pin_chat_message(id, message.message_id)
                 old_video_dict[desc_video] = ref
         except Exception:
             bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
@@ -185,6 +172,26 @@ def video(name):
         time.sleep(timer)
     bot.send_message(user_id, str(f'{name}\nпошла рекурсия\n'))
     video(name)
+
+def video_matchtv(name):
+    old_video_dict = youtube_matchtv(name)
+    while True:
+        ### Тут код парсинга
+        timer = 1800
+        list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+        try:
+            new_video_dict = youtube_matchtv(name)
+            for desc_video, ref in new_video_dict.items():
+                if desc_video in old_video_dict:
+                    break
+                for id in list_user_push_true:
+                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
+                    bot.send_message(id, f"{desc_video}\n{ref}")
+                old_video_dict[desc_video] = ref
+        except Exception:
+            bot.send_message(user_id, str(f'{name}\nexcept video_matchtv\n'))
+            time.sleep(timer)
+        time.sleep(timer)
             
 # for name in dict_youtube:
 #     #threading.Thread(target=video, args=(name,)).start()
@@ -193,18 +200,17 @@ def video(name):
 #     threading.Timer(1,video, [name]).start()
 # for name in dict_matchtv:
 #     threading.Timer(1,video, [name]).start()
-for name in mass_contry.values():
-     threading.Timer(1,video, [name]).start()
+# for name in mass_contry.values():
+#      threading.Timer(1,video, [name]).start()
 
+
+threading.Timer(1, video_matchtv, ['обзор']).start()
 #threading.Timer(1, video, ['france']).start()
-    
+#threading.Timer(1, video, ['england']).start()
 #threading.Timer(1, video, ['italy']).start()
 #threading.Timer(1, video, ['germany']).start()
-#threading.Timer(1, video, ['england']).start()
 #threading.Timer(1, video, ['russiapl']).start()
 #threading.Timer(1, video, ['spain']).start()
-#threading.Timer(1,target=video('england')).start()
-#threading.Thread(target=video('germany')).start()
 
 # def push_live():
 #     while True:
