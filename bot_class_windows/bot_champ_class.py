@@ -161,8 +161,8 @@ def video(name):
                 if desc_video in old_video_dict:
                     break
                 for id in list_user_push_true:
-                    message = bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
-                    bot.send_message(id, f"{desc_video}\n{ref}")
+                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
+                    message = bot.send_message(id, f"{desc_video}\n{ref}")
                     if id < 0:
                         bot.pin_chat_message(id, message.message_id)
                 old_video_dict[desc_video] = ref
@@ -186,7 +186,9 @@ def video_matchtv(name):
                     break
                 for id in list_user_push_true:
                     bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
-                    bot.send_message(id, f"{desc_video}\n{ref}")
+                    message = bot.send_message(id, f"{desc_video}\n{ref}")
+                    if id < 0:
+                        bot.pin_chat_message(id, message.message_id)
                 old_video_dict[desc_video] = ref
         except Exception:
             bot.send_message(user_id, str(f'{name}\nexcept video_matchtv\n'))
