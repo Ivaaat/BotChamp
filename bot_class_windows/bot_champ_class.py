@@ -7,7 +7,7 @@ import time
 import logging
 from telebot import formatting
 from news_football_class import news_parse, get_one_news, rss_news
-from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv, rutube_video
+from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_video, rutube_video
 from xpath_ref_class import *
 from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv, rss_link
 from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour, news_pic
@@ -130,7 +130,7 @@ def video(name):
         func_parse = bs4_youtube
         arg = dict_youtube[name]
     elif name in dict_matchtv:
-        func_parse = youtube_matchtv
+        func_parse = youtube_video
         arg = dict_matchtv[name]
     else:
         func_parse = parse_for_push

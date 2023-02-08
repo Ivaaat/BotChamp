@@ -190,4 +190,4 @@ def rutube_video(query='обзор'):
 
 #rutube_video(query="италии")    
 #rutube_video(query="германии")
-rutube_video()
+#rutube_video()
