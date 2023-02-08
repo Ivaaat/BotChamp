@@ -458,7 +458,7 @@ def get_start_end_tour(name, next_date, rgb=(255,255,255),name_champ=""):
 #get_start_end_tour('russiapl', get_next_date('russiapl'),name_champ ="РПЛ, Чемпионат России")
 #get_start_end_tour('germany', get_next_date('germany'), name_champ = "Бундеслига, Чемпионат Германии")
 #get_start_end_tour('spain', get_next_date('spain'), name_champ="Ла Лига, Чемпионат Испании")
-get_start_end_tour('england', get_next_date('england'), name_champ='АПЛ, Чемпионат Англии')
+#get_start_end_tour('england', get_next_date('england'), name_champ='АПЛ, Чемпионат Англии')
 #get_start_end_tour('france', get_next_date('france'), name_champ="Лига 1, Чемпионат Франции")
 
 def news_pic(logo_news, text_news):

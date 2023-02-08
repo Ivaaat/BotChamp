@@ -124,55 +124,6 @@ def news():
             time.sleep(timer)
 threading.Thread(target=news).start()
 
-
-def video(name):
-    if name in dict_youtube:
-        func_parse = bs4_youtube
-        arg = dict_youtube[name]
-    elif name in dict_matchtv:
-        func_parse = youtube_video
-        arg = dict_matchtv[name]
-    else:
-        func_parse = parse_for_push
-        arg = dict_site[name]
-    old_video_dict = func_parse(arg)
-    next_date = get_next_date(name)
-    # pic = get_start_end_tour(name, next_date)
-    # if pic != None:
-    #     bot.send_photo(user_id, pic)
-    time_sleep_ends_match = timedelta(hours=3)
-    try:
-        time_sleep = next_date - datetime.now()
-        time.sleep(time_sleep.total_seconds())
-        bot.send_message(user_id, str(f'{name}\nматч начался\n{datetime.now()}'))
-        time.sleep(time_sleep_ends_match.seconds)
-        bot.send_message(user_id, str(f'{name}\nматч закончился! начался парсинг\n'))
-        add_db(name, '2022/2023')
-    except ValueError:
-        time.sleep(time_sleep_ends_match.seconds)
-        add_db(name, '2022/2023')
-    while datetime.now() < (next_date + timedelta(hours=13)):
-        ### Тут код парсинга
-        timer = 1800
-        list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
-        try:
-            new_video_dict = func_parse(arg)
-            for desc_video, ref in new_video_dict.items():
-                if desc_video in old_video_dict:
-                    break
-                for id in list_user_push_true:
-                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
-                    message = bot.send_message(id, f"{desc_video}\n{ref}")
-                    if id < 0:
-                        bot.pin_chat_message(id, message.message_id)
-                old_video_dict[desc_video] = ref
-        except Exception:
-            bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
-            time.sleep(timer)
-        time.sleep(timer)
-    bot.send_message(user_id, str(f'{name}\nпошла рекурсия\n'))
-    video(name)
-
 def video_matchtv():
     old_video_dict = rutube_video()
     while True:
@@ -194,6 +145,41 @@ def video_matchtv():
             bot.send_message(user_id, str(f'except video_matchtv\n'))
             time.sleep(timer)
         time.sleep(timer)
+
+
+def video(name="", channel="", query = "highlights"):
+    if channel.startswith("@"):
+        old_video_dict = youtube_video(channel, query = query )
+    elif name == "":
+        old_video_dict = rutube_video()
+    else:
+        old_video_dict = parse_for_push(dict_site[name])
+    while True:
+        ### Тут код парсинга
+        timer = 1800
+        list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
+        try:
+            if channel.startswith("@"):
+                new_video_dict = youtube_video(name, query = query )
+            elif name == "":
+                new_video_dict = rutube_video()
+            else:
+                new_video_dict = parse_for_push(dict_site[name])
+            for desc_video, ref in new_video_dict.items():
+                if desc_video in old_video_dict:
+                    break
+                for id in list_user_push_true:
+                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
+                    message = bot.send_message(id, f"{desc_video}\n{ref}")
+                    if id < 0:
+                        bot.pin_chat_message(id, message.message_id)
+                old_video_dict[desc_video] = ref
+        except Exception:
+            bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
+            time.sleep(timer)
+        time.sleep(timer)
+
+
             
 # for name in dict_youtube:
 #     #threading.Thread(target=video, args=(name,)).start()
@@ -206,10 +192,11 @@ def video_matchtv():
 #      threading.Timer(1,video, [name]).start()
 
 
-threading.Timer(1, video_matchtv).start()
-#threading.Timer(1, video, ['france']).start()
-#threading.Timer(1, video, ['england']).start()
-#threading.Timer(1, video, ['italy']).start()
+threading.Timer(1, video).start()
+threading.Timer(1, video, ['spain',"@okkosport", 'ла лига.']).start()
+threading.Timer(1, video, ['france',"@Ligue1official"]).start()
+# threading.Timer(1, video, ['france']).start()
+threading.Timer(1, video, ['england']).start()
 #threading.Timer(1, video, ['germany']).start()
 #threading.Timer(1, video, ['russiapl']).start()
 #threading.Timer(1, video, ['spain']).start()

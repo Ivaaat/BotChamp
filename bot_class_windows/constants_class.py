@@ -41,15 +41,16 @@ dict_site= {'france':'https://football-video.org/liga-1/',
 dict_youtube= {  
                 #'germany':'PLpRpBSDScdda-FwWFOlwW15w7UmX8zu0a', #Германия🇩🇪
                 #'russiapl':'PLpRpBSDScddanhPbioyn7fPvLhS7cJs0V', #Россия🇷🇺
-                'spain':'PLSIpIU2VZoWXkBRWNTcVz7dZonmWYGmfm', #Испания🇪🇸
+                #'spain':'PLSIpIU2VZoWXkBRWNTcVz7dZonmWYGmfm', #Испания🇪🇸
                 #'italy':'PLpRpBSDScddbXaU03LzVQlLfALOHfw3gv', #Италия🇮🇹
                 
 }
 
-dict_matchtv = {'italy':'италии',
-                'germany':'германии',
-                'russiapl':'мир',
-                "обзор": "обзор"
+dict_matchtv = {#'italy':'италии',
+                #'germany':'германии',
+                #'russiapl':'мир',
+                'spain', 'Ла Лига'
+                #"обзор": "обзор"
                 }
 
 
