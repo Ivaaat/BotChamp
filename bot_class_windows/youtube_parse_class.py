@@ -165,7 +165,6 @@ def rutube_video(channel="255003",query='обзор'):
     search = send.find_all('script')
     key = '"video_url":"https://rutube.ru/video/'
     title = '"title":"'
-    #title = '"title":"'
     asd = {}
     time.sleep(1)
     data = re.findall(key + r"([^*]{32})", str(search))
