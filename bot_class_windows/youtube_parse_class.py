@@ -27,6 +27,7 @@ import googleapiclient.discovery
 from constants_class import mass_review
 from bs4 import BeautifulSoup
 import re
+import time
 
 sess = requests.Session()
 sess.headers.update({
@@ -140,10 +141,11 @@ def bs4_youtube(query):
 
     return asd 
 
-def youtube_matchtv(query):
-    base_video_url = 'https://www.youtube.com/@MatchTV/videos'
+def youtube_video(video_url, query='highlights'):
+    #base_video_url = 'https://www.youtube.com/@MatchTV/videos'
+    #video_url = 'https://www.youtube.com/@seriea/videos'
     #base_video_url = f'https://www.youtube.com/playlist?list=PLpRpBSDScddanhPbioyn7fPvLhS7cJs0V'
-    req = requests.get(base_video_url)
+    req = requests.get(f'https://www.youtube.com/@{video_url}/videos')
     send = BeautifulSoup(req.text, 'html.parser')
     search = send.find_all('script')
     key = '"watchEndpoint":{"videoId":"'
@@ -154,7 +156,7 @@ def youtube_matchtv(query):
     i = 0
     #key_words = ['Обзор матча чемпионата', 'Италии', 'Германии', 'Испании', 'Голевая неделя']
     #key_words = query
-    for clear_title in data1[:60]:
+    for clear_title in data1:
         #for words in key_words:
         if query in clear_title.lower():
             asd[clear_title[1:clear_title.find('}')-1]] = 'https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
@@ -162,5 +164,30 @@ def youtube_matchtv(query):
         continue
     return asd 
 
+#youtube_video("seriea")
+#youtube_video("okkosport",query='ла лига.')
+#youtube_video("Ligue1official")
+#youtube_video("bundesliga")
 
-    
+def rutube_video(query='обзор'):
+    req = requests.get(f'https://rutube.ru/metainfo/tv/255003')
+    send = BeautifulSoup(req.text, 'html.parser')
+    search = send.find_all('script')
+    key = '"video_url":"https://rutube.ru/video/'
+    title = ',"extra_params":{},"title":"'
+    asd = {}
+    time.sleep(1)
+    data = re.findall(key + r"([^*]{32})", str(search))
+    data1 = re.findall(title + r"([^*]{150})" , str(search))
+    i = 0
+    for clear_title in data1:
+        if query in clear_title.lower():
+            asd[clear_title[:clear_title.find('"')]] = 'https://rutube.ru/video/' + data[i][:len(data[i])]
+        i+=1
+        continue
+    return asd 
+
+
+#rutube_video(query="италии")    
+#rutube_video(query="германии")
+rutube_video()

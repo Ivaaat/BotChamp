@@ -7,7 +7,7 @@ import time
 import logging
 from telebot import formatting
 from news_football_class import news_parse, get_one_news, rss_news
-from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv
+from youtube_parse_class import parse_youtube_ref, you_pytube, bs4_youtube, youtube_matchtv, rutube_video
 from xpath_ref_class import *
 from constants_class import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv, rss_link
 from championat_class import add_db, get_tab, get_logo, get_next_date, get_cal, get_start_end_tour, news_pic
@@ -173,25 +173,25 @@ def video(name):
     bot.send_message(user_id, str(f'{name}\nпошла рекурсия\n'))
     video(name)
 
-def video_matchtv(name):
-    old_video_dict = youtube_matchtv(name)
+def video_matchtv():
+    old_video_dict = rutube_video()
     while True:
         ### Тут код парсинга
         timer = 1800
         list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
         try:
-            new_video_dict = youtube_matchtv(name)
+            new_video_dict = rutube_video()
             for desc_video, ref in new_video_dict.items():
                 if desc_video in old_video_dict:
                     break
                 for id in list_user_push_true:
-                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
+                    bot.send_message(user_id, str(f'Вышел обзор\n'))
                     message = bot.send_message(id, f"{desc_video}\n{ref}")
                     if id < 0:
                         bot.pin_chat_message(id, message.message_id)
                 old_video_dict[desc_video] = ref
         except Exception:
-            bot.send_message(user_id, str(f'{name}\nexcept video_matchtv\n'))
+            bot.send_message(user_id, str(f'except video_matchtv\n'))
             time.sleep(timer)
         time.sleep(timer)
             
@@ -206,7 +206,7 @@ def video_matchtv(name):
 #      threading.Timer(1,video, [name]).start()
 
 
-threading.Timer(1, video_matchtv, ['обзор']).start()
+threading.Timer(1, video_matchtv).start()
 #threading.Timer(1, video, ['france']).start()
 #threading.Timer(1, video, ['england']).start()
 #threading.Timer(1, video, ['italy']).start()
