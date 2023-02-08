@@ -122,6 +122,7 @@ def news():
         except Exception as e:
             bot.send_message(user_id, str('def news\n'))
             time.sleep(timer)
+        time.sleep(timer)
 threading.Thread(target=news).start()
 
 def video_matchtv():
