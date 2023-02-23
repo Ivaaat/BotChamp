@@ -11,7 +11,7 @@ mass_contry = {#'Чемпионат мира🌍':"worldcup",
                 'Италия🇮🇹' : 'italy'
                 }
 
-mass_review= {  'Чемпионат мира🌍': 'PLpRpBSDScddYR_D0r4KKInB9nO6CEensJ',
+mass_review= {  
                 'Германия🇩🇪':'PLpRpBSDScdda-FwWFOlwW15w7UmX8zu0a',
                 'Англия🏴󠁧󠁢󠁥󠁮󠁧󠁿':'https://football-video.org/apl',
                 'Россия🇷🇺': 'PLpRpBSDScddanhPbioyn7fPvLhS7cJs0V',
@@ -21,6 +21,7 @@ mass_review= {  'Чемпионат мира🌍': 'PLpRpBSDScddYR_D0r4KKInB9nO6
                 'Франция🇫🇷':'https://football-video.org/liga-1/',
                 'Лига Европы🌍':'PLpRpBSDScddabbzFhHOJQapEWNu8-t1tM', 
                 'Лига чемпионов🌍':'PLpRpBSDScddZxF2OwYYTL5rdBoN0aL6Wc',
+                'Чемпионат мира🌍': 'PLpRpBSDScddYR_D0r4KKInB9nO6CEensJ',
                 'ЧР по мини-футболу. Суперлига':'PLD9gHCUt59tyYv7ilVTlP9yn9RxWJcscL',
                 'Чемпионат НН 22-23. Городская лига':'PLOvNZVawUnhtaJNXAXSbv-x5dRsvLISEo',
                 'Кубок Италии': 'https://football-video.org/kubok-italii/',

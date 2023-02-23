@@ -101,22 +101,21 @@ def parse_for_push(url):
 
 def news():
     response = sess.get(rss_link)
-    title, link, logo = rss_news(response)
-    old_news = title
+    _, old_link, _ = rss_news(response)
     while True:
         try:
             timer = 120
             list_user_push_true = [user_id for user_id in get_list_user() if get_push(user_id)]
             if len(list_user_push_true) > 0:
                 response = sess.get(rss_link)
-                title, link, logo = rss_news(response)
-                new_news = title
-                if new_news != old_news:
-                    pic = news_pic(logo, title)
-                    inst_view = f'https://t.me/iv?url=https%3A%2F%2F{link}&rhash=f610f320a497f8'
+                new_news, new_link, logo = rss_news(response)
+                #if new_news != old_news:
+                if new_link != old_link:
+                    pic = news_pic(logo, new_news)
+                    inst_view = f'https://t.me/iv?url=https%3A%2F%2F{new_link}&rhash=f610f320a497f8'
                     markup = InlineKeyboardMarkup()
-                    markup.add(InlineKeyboardButton(title, url=inst_view))
-                    old_news = new_news
+                    markup.add(InlineKeyboardButton(new_news, url=inst_view))
+                    old_link = new_link
                     for id in list_user_push_true:
                         bot.send_photo(id,pic,reply_markup = markup)
         except Exception as e:
@@ -246,9 +245,8 @@ def button_country_news(message):
     button_country = types.KeyboardButton('Чемпионаты🏆')
     button_news = types.KeyboardButton('Новости📰')
     button_review = types.KeyboardButton('Обзоры⚽')
-    button_live = types.KeyboardButton('Live')
     markup.add(button_country, button_news)
-    markup.add(button_review, button_live)
+    markup.add(button_review)
     if get_push(message.chat.id):
         ne = 'не'
     else:
@@ -317,15 +315,15 @@ def table_text(message, back = "" ):
             markup.add(button_champ_rev)
         msg = bot.send_message(message.chat.id, 'Выбери чемпионат', reply_markup=markup)
         bot.register_next_step_handler(msg, get_dict_review)
-    elif 'Live' in [message.text, back]:
-        markup = types.ReplyKeyboardMarkup()
-        button_today = types.KeyboardButton('Сегодня')
-        button_live = types.KeyboardButton('Live')
-        back_button(markup)
-        markup.add(button_today, button_live)
-        msg = bot.send_message(message.chat.id, 'Матчи', reply_markup=markup)
-        bot.register_next_step_handler(msg, today_or_live)
-    elif message.text == "update":
+    # elif 'Live' in [message.text, back]:
+    #     markup = types.ReplyKeyboardMarkup()
+    #     button_today = types.KeyboardButton('Сегодня')
+    #     button_live = types.KeyboardButton('Live')
+    #     back_button(markup)
+    #     markup.add(button_today, button_live)
+    #     msg = bot.send_message(message.chat.id, 'Матчи', reply_markup=markup)
+    #     bot.register_next_step_handler(msg, today_or_live)
+    elif message.text == "update" and user_id == message.chat.id:
         for name in mass_contry.values():
             add_db(name, '2022/2023')
             bot.send_message(message.chat.id, f'Обновил {name}')
@@ -554,11 +552,12 @@ def get_news(message, ref_dict):
         if message.text in ref_dict :
             axzc = ref_dict.get(message.text)
             list_photo_text = get_one_news(axzc, message.text[5:])
-            pic = news_pic([list_photo_text[0], message.text])
+            #pic = news_pic(list_photo_text[0], message.text)
             if len(list_photo_text[1]) >= 1024:
                 num_symb =list_photo_text[1][:1024].rfind('.') + 1
                 bot.send_photo(message.chat.id,
-                    pic,#list_photo_text[0],
+                    #pic,
+                    list_photo_text[0],
                     caption=list_photo_text[1][:num_symb])
                 for x in range(num_symb, len(list_photo_text[1]), 1024):
                     msg = bot.send_message(message.chat.id, list_photo_text[1][x:x+1024])

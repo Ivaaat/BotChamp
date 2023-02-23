@@ -37,7 +37,7 @@ def get_live():
         except KeyError:
             continue
     return dict_live
-get_live()
+#get_live()
 
 
 
