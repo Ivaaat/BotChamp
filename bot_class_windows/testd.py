@@ -3,7 +3,7 @@ from lxml import html
 from config import TOKEN, user_id, User_agent
 import time
 import datetime
-from championat_class import Championat
+from championat import Championat
 #import googletrans
 
 def get_date():
