@@ -5,8 +5,6 @@ __pycache__
 *.jpg
 /pic
 /ttf
-testd.py
-config.py
 constants.py
 xpath_ref.py
 live.py
