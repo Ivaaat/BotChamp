@@ -17,7 +17,7 @@ from config import TOKEN, user_id, User_agent
 from MyDataBase import MyBaseDB
 from pymongo import MongoClient
 import re
-from testd import json_championat
+#from testd import json_championat
 from user_mongo import add_user, view_users, get_push, get_user, get_list_user, set_push, add_field, delete_field, get_live
 #from googletrans import Translator
 from datetime import datetime, timedelta
