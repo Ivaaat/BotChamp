@@ -350,7 +350,7 @@ def table_text(message, back = "" ):
 #             if message.text not in ['Live', "Сегодня"]:
 #                 text = back
 #             text = message.text
-#             prop_match = json_championat(text)
+#             prop_match = json_championat(text)Таб
 #             for name_match in prop_match:
 #                 button_name = types.KeyboardButton(name_match)
 #                 markup.add(button_name)
@@ -471,8 +471,9 @@ def result_team(message, dict_team, country_button):
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
                 get_logo(mass_contry[country_button], text),
-                caption = formatting.mbold('\n\n'.join(dict_team[text]['Последние результаты\n'])),
-                parse_mode='MarkdownV2',
+                #caption = formatting.mbold('\n\n'.join(dict_team[text]['Последние результаты\n'])),
+                caption = '\n\n'.join(dict_team[text]['Последние результаты\n']),
+                #parse_mode='MarkdownV2',
                 reply_markup = markup
                 )
             bot.register_next_step_handler(msg, result_team, dict_team, country_button)
