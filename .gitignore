@@ -5,3 +5,8 @@ __pycache__
 *.jpg
 /pic
 /ttf
+testd.py
+config.py
+constants_class.py
+xpath_ref_class.py
+MyBase.txt
