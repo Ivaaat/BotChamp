@@ -67,16 +67,16 @@ def menu_button(markup):
     button_menu = types.KeyboardButton('Главное меню')
     return markup.add(button_menu)
 
-def live():
-    old_result = get_live()
-    new_result = {}
-    while True:
-        for id, list_live in old_result.items():
-            new_result[id] = json_championat('push', list_live)
-            for i, match_live in enumerate(list_live):
+# def live():
+#     old_result = get_live()
+#     new_result = {}
+#     while True:
+#         for id, list_live in old_result.items():
+#             new_result[id] = json_championat('push', list_live)
+#             for i, match_live in enumerate(list_live):
 
-                if old_result[id][i] != match_live:
-                    bot.send_message(id, json_championat('push', match_live))
+#                 if old_result[id][i] != match_live:
+#                     bot.send_message(id, json_championat('push', match_live))
 #threading.Thread(target=live).start()
 
 def parse_for_push(url):
@@ -335,49 +335,49 @@ def table_text(message, back = "" ):
         bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
         button_country_news(message)
 
-def today_or_live(message, back = ""):
-    try:
-        markup = types.ReplyKeyboardMarkup()
-        menu_button(markup)
-        back_button(markup)
-        prop_match = json_championat(message.text)
-        if message.text == 'Назад':
-            return button_country_news(message)
-        elif prop_match == "Нет матчей":
-            button_name = types.KeyboardButton(prop_match)
-            markup.add(button_name)
-        elif message.text in  ['Live', "Сегодня"] or back in ['Live', "Сегодня"]:
-            if message.text not in ['Live', "Сегодня"]:
-                text = back
-            text = message.text
-            prop_match = json_championat(text)
-            for name_match in prop_match:
-                button_name = types.KeyboardButton(name_match)
-                markup.add(button_name)
-        else:
-            raise KeyError
-        msg = bot.send_message(message.chat.id, message.text, reply_markup=markup)
-        bot.register_next_step_handler(msg, property_match)
-    except Exception:
-        table_text(message, back = 'Live')
+# def today_or_live(message, back = ""):
+#     try:
+#         markup = types.ReplyKeyboardMarkup()
+#         menu_button(markup)
+#         back_button(markup)
+#         prop_match = json_championat(message.text)
+#         if message.text == 'Назад':
+#             return button_country_news(message)
+#         elif prop_match == "Нет матчей":
+#             button_name = types.KeyboardButton(prop_match)
+#             markup.add(button_name)
+#         elif message.text in  ['Live', "Сегодня"] or back in ['Live', "Сегодня"]:
+#             if message.text not in ['Live', "Сегодня"]:
+#                 text = back
+#             text = message.text
+#             prop_match = json_championat(text)
+#             for name_match in prop_match:
+#                 button_name = types.KeyboardButton(name_match)
+#                 markup.add(button_name)
+#         else:
+#             raise KeyError
+#         msg = bot.send_message(message.chat.id, message.text, reply_markup=markup)
+#         bot.register_next_step_handler(msg, property_match)
+#     except Exception:
+#         table_text(message, back = 'Live')
 
-def property_match(message):
-    try:
-        if message.text == 'Главное меню':
-            button_country_news(message)
-        elif message.text == 'Назад':
-            table_text(message, back = 'Live')
-        else:
-            push = json_championat("push", message.text)
-            if type(push) == bool:
-                bot.send_message(message.chat.id, "Матч не Live")
-                return table_text(message, back = 'Live')
-            if get_push(message.chat.id, name_field = message.text) == "":
-                add_field(message.chat.id, message.text, True)
-                bot.send_message(message.chat.id, "Ты подписался на матч\n" + message.text)
-            else:
-                delete_field(message.chat.id, message.text)
-                bot.send_message(message.chat.id, "Ты отписался от матча\n" + message.text)
+# def property_match(message):
+#     try:
+#         if message.text == 'Главное меню':
+#             button_country_news(message)
+#         elif message.text == 'Назад':
+#             table_text(message, back = 'Live')
+#         else:
+#             push = json_championat("push", message.text)
+#             if type(push) == bool:
+#                 bot.send_message(message.chat.id, "Матч не Live")
+#                 return table_text(message, back = 'Live')
+#             if get_push(message.chat.id, name_field = message.text) == "":
+#                 add_field(message.chat.id, message.text, True)
+#                 bot.send_message(message.chat.id, "Ты подписался на матч\n" + message.text)
+#             else:
+#                 delete_field(message.chat.id, message.text)
+#                 bot.send_message(message.chat.id, "Ты отписался от матча\n" + message.text)
                 # if get_push(message.chat.id, name_field = message.text):
                 #     bool_push = False
                 # else:
@@ -386,9 +386,9 @@ def property_match(message):
 
             #msg = bot.send_message(message.chat.id, "КФ", reply_markup= markup)
             #bot.register_next_step_handler(msg, table_text, 'Live')
-            today_or_live(message, back = "Live")
-    except Exception:
-        table_text(message, back = 'Live')
+    #         today_or_live(message, back = "Live")
+    # except Exception:
+    #     table_text(message, back = 'Live')
 
 
 #Создаем две кнопки "Календарь" и "Таблица "
