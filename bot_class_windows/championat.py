@@ -32,7 +32,6 @@ class Championat:
         self.response_text = ""
         self.tree = ""
         self.calendar = {}
-        #self.dict_table = {}
         self.tour = 1
         self.num_tour = []
         self.list_match = []
@@ -52,14 +51,6 @@ class Championat:
         response = sess.get(self.url_championat)
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
-    '''
-    def get_response_championat(self):
-        response = sess.get(self.url_championat)
-        self.response_text = response.text
-        self.tree = html.fromstring(self.response_text)
-    '''
-    
-
 
 
     def get_response_calendar(self):
@@ -72,22 +63,26 @@ class Championat:
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
 
+
     def get_match(self):
         list_match = self.tree.xpath(parse_xpath_match)
         for i in range(0,len(list_match),2):
             self.list_match.append(' - '.join(list_match[i:i + 2]))
         return self.list_match
     
+
     def get_result(self):
         list_result = self.tree.xpath(parse_xpath_result)
         for i in range(0,len(list_result)):
             self.list_result.append(list_result[i].strip())
     
+
     def get_date(self):
         list_datematch = self.tree.xpath(date_xpath_match)
         for i in range(0,len(list_datematch)):
             self.list_datematch.append (" ".join(list_datematch[i].split()))
         return self.list_datematch
+
 
     def get_tour(self):
         list_tour = self.tree.xpath(num_xpath_tour)
@@ -102,28 +97,27 @@ class Championat:
         response = sess.get(url)
         return response.text
 
+
     def get_teams(self):
         self.list_teams = self.tree.xpath(teams_xpath)
+
 
     def get_games(self):
          self.list_games = self.tree.xpath(games_xpath)
 
+
     def get_points(self):
         self.list_points = self.tree.xpath(points_xpath)
+
 
     def get_result_six_matches(self):
         self.list_result_six_matches = self.tree.xpath(results_xpath)
 
+
     def get_logo(self):
         self.list_ref_logo = self.tree.xpath(logo_ref_xpath)
 
-        
 
-    def get_keyboard():
-        pass
-
-
-            
 class Calendar(Championat):
     def get_calendar(self):
         self.get_response_calendar()
@@ -194,7 +188,6 @@ class Team(Championat):
         pass
 
 
-
 def add_db(name, name_champ):
     country =  db[name]
     calendar = Calendar(name)
@@ -208,14 +201,9 @@ def add_db(name, name_champ):
     dac = [calendar.num_tour[i] + " " + calendar.list_datematch[i] + " | " + calendar.list_match[i] + " | " + calendar.list_result[i]  for i in range(len(calendar.num_tour))]
     dac.sort(key = sortByAlphabet)
     dict_champ = {}
-    #logo = {}
     dict_champ['Чемпионат'] = name_champ
     for i, name_team in enumerate(table.list_teams):
         games = [dac[i][2:].strip() for i in range(len(dac)) if name_team in dac[i]]
-        # url = f'{parse_site}' + table.list_ref_logo[i]
-        # response = sess.get(url)
-        # tree = html.fromstring(response.text)
-        # logo_list = tree.xpath(logo_xpath)
         dict_champ[name_team]={
                             'Таблица':{
                                         "Очки" : table.list_points[i],
@@ -224,12 +212,9 @@ def add_db(name, name_champ):
 
                             'Календарь': games,
         }
-        #logo[name_team] = logo_list[0]
-        #country.update_one({"Чемпионат": '2022/2023'}, {'$set':{'Лого':{name_team:logo_list[0]}}})
-        #country.update_one({"Чемпионат": '2022/2023'}, {'$set':{dict_champ[name_team]['Таблица']["Очки"]:table.list_points[i]}})
-    #country.update_one({"Чемпионат": '2022/2023'}, {'$set':dict_champ,'$set':{'Лого':logo}})
     country.update_one({"Чемпионат": '2022/2023'}, {'$set':dict_champ})
     get_cal(name, name_champ)
+
 
 def get_logo(db_name, name):
     country =  db[db_name]
@@ -238,6 +223,8 @@ def get_logo(db_name, name):
         return logo["Лого"][name]
     except KeyError:
         return logo["Лого"]['Шальке-04']
+
+
 def get_cal(name, name_champ):
     country =  db[name]
     calendar = country.find_one({"Чемпионат": name_champ})
@@ -273,11 +260,13 @@ def get_cal(name, name_champ):
 def sortByAlphabet(inputStr):
     return int(inputStr[:2])
 
+
 def sort_date(date):
     if len(date.split("|")[0].split()) == 1:
         date = date.split("|")[0].replace('.','-') + " 23:59"
         return date.strip()
     return date.split('|')[0].replace('.','-').strip()
+
 
 def get_tab(name):
     country =  db[name]
@@ -298,7 +287,7 @@ def get_tab(name):
         return dict_table
     except Exception as e:
             print(e)
-            print(e)
+
 
 def get_next_date(name):
     country =  db[name]
@@ -318,6 +307,7 @@ def get_next_date(name):
                     date_min.append(date_match)
     date_min.sort()
     return date_min[0]
+
 
 def get_start_end_tour(name, next_date, rgb=(255,255,255),name_champ=""):
     country =  db[name]
