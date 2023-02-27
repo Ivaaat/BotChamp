@@ -3,7 +3,12 @@ __pycache__
 *.ttf
 *.png
 *.jpg
+*.txt
 /pic
 /ttf
 constants.py
 xpath_ref.py
+config.py
+live.py
+testd.py
+MyDataBase.py
