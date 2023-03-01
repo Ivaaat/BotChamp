@@ -13,7 +13,7 @@ from datetime import datetime
 from config import mass_contry, mass_review
 from config import dict_site, list_name_site, rss_link
 from championat import add_db, get_tab, get_logo,  get_cal, parent_word
-from pic import news_pic
+from pict import news_pic
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
