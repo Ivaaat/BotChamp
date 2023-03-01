@@ -12,3 +12,6 @@ config.py
 live.py
 testd.py
 MyDataBase.py
+add_db.py
+pic.py
+sheduler.py
