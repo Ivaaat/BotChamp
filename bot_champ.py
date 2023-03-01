@@ -8,8 +8,10 @@ import logging
 from news_football import news_parse, get_one_news, rss_news
 from youtube_parse import bs4_youtube, youtube_video, rutube_video
 from xpath_ref import *
+from datetime import datetime
 from constants import mass_contry, mass_review, parse_site, dict_youtube, dict_site, list_name_site, dict_matchtv, rss_link
-from championat import add_db, get_tab, get_logo,  get_cal, news_pic
+from championat import add_db, get_tab, get_logo,  get_cal, parent_word
+from pic import news_pic
 from world_champ import WorldCup, world_playoff
 import threading
 from config import TOKEN, user_id, User_agent
@@ -66,13 +68,13 @@ def parse_for_push(url):
     review_list_lxml_date= tree.xpath(review_xpath_date)
     asd = []
     if len(review_list_lxml_href) == 0:
-            review_list_lxml_href = tree_ref.xpath(review_xpath_match_France_href)
+            review_list_lxml_href = tree_ref.xpath(review_xpath_France_href)
     for i, url_ref in enumerate(review_list_lxml_href):
         response_ref = sess.get(url_ref)
         tree_ref = html.fromstring(response_ref.text)
-        review_href_list = tree_ref.xpath(review_xpath_match_href)
+        review_href_list = tree_ref.xpath(review_xpath_href)
         if len(review_href_list) == 0:
-            review_href_list = tree_ref.xpath(review_xpath_match_France_href)
+            review_href_list = tree_ref.xpath(review_xpath_France_href)
         review_ref = review_href_list[0][review_href_list[0].find('https'):len(review_href_list[0])]
         asd.append([(review_list_lxml_title[i].replace('видео обзор матча'," | ") + review_list_lxml_date[i]), review_ref])
     return dict(asd)
@@ -95,7 +97,7 @@ def news():
                     markup.add(InlineKeyboardButton(new_news, url=inst_view))
                     old_link = new_link
                     for id in list_user_push_true:
-                        bot.send_photo(id,pic,reply_markup = markup)
+                        bot.send_photo(id, pic, reply_markup = markup)
         except Exception as e:
             bot.send_message(user_id, str('def news\n'))
             time.sleep(timer)
@@ -241,7 +243,7 @@ def table_text(message, back = "" ):
         back_button(markup)
         dict_news = news_parse()
         for news in dict_news:
-                    markup.add(types.KeyboardButton(news))
+            markup.add(types.KeyboardButton(news))
         bot.clear_step_handler_by_chat_id(chat_id = message.chat.id)
         msg = bot.send_message(message.chat.id,
                         'Новости',
@@ -323,14 +325,19 @@ def create_table(message, country_button):
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
-        i = 1
-        for key, value in mass.items():
-            button = types.KeyboardButton(f'{str(i)}.  {key}' +
-            '   Очки: ' + str(value['Очки']) +
-            '   Игры: ' + str(value['Игры'])
+        j = 1
+        for name_team, stat in mass.items():
+            button = types.KeyboardButton(
+"{}. | {} |  И: {}  О: {}  M: {}".format(
+                j,
+                name_team,
+                stat[0],
+                stat[1],
+                stat[2]
+                )
             )
             markup.add(button)
-            i+=1
+            j+=1
         msg = bot.send_message(message.chat.id,
         f'{country_button}.Таблица чемпионата!\n\
     Выбери команду, чтобы узнать последние результаты',
@@ -344,14 +351,24 @@ def result_team(message, dict_team, country_button):
     try:
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("Главное меню", callback_data="back"))
-        text = message.text[4:message.text.find('О', 5)].strip()
+        try:
+            text = message.text.split("|")[1].strip()
+        except IndexError:
+            text = message.text
         if text in dict_team:
+            list_date = []
+            for date in dict_team[text][3]:
+                true_date = parent_word(datetime.strptime(date.split("|")[0].split()[0], '%d-%m-%Y').strftime('%d %B'))
+                list_date.append('{} {} | {} | {}'.format(true_date,
+                                                          date.split("|")[0].split()[1], 
+                                                          date.split('|')[1],
+                                                          date.split('|')[2]))
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
-                get_logo(mass_contry[country_button], text),
-                caption = '\n\n'.join(dict_team[text]['Последние результаты\n']),
-                reply_markup = markup
-                )
+            get_logo(mass_contry[country_button], text),
+            caption = '\n\n'.join(list_date),
+            reply_markup = markup
+            )
             bot.register_next_step_handler(msg, result_team, dict_team, country_button)
         elif message.text == 'Главное меню':
             button_country_news(message)
@@ -370,18 +387,19 @@ def create_calendar(message, country_button):
         bot.send_message(message.chat.id, worldcup.worldcup_calendar())
         return calendar_and_table(message, back = country_button)
     elif country_button in mass_contry:
-        country = mass_contry.get(country_button)
-        dict_calendar = get_cal(country,'2022/2023')
+        dict_calendar = get_cal(mass_contry[country_button],'2022/2023')
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
         for key in dict_calendar:
-            start = str(dict_calendar[key]['start'])
-            end = str(dict_calendar[key]['end'])
+            date_start = datetime.strptime(str(dict_calendar[key]['start']).split()[0], '%Y-%m-%d').strftime('%d %B')
+            start = parent_word(date_start)
+            date_end = datetime.strptime(str(dict_calendar[key]['end']).split()[0], '%Y-%m-%d').strftime('%d %B')
+            end = parent_word(date_end)
             the_end =""
             if dict_calendar[key]['Закончен']:
-                the_end = '| Закончен'
-            button = types.KeyboardButton(('{} | {} - {} {}').format(key, start[:10], end[:10], the_end))
+                the_end = 'Закончен'
+            button = types.KeyboardButton(('{} | {} - {} | {}').format(key, start, end, the_end))
             markup.add(button)
         msg = bot.send_message(message.chat.id,
                             f'{country_button} Выбери тур, чтобы узнать результаты:',
@@ -395,16 +413,22 @@ def create_calendar(message, country_button):
 #Обработка нажатия на кнопку с туром
 def view_tour (message, dict_calendar, country_button):
     try:
-        text = message.text[:6].strip()
+        text = message.text.split("|")[0].strip()
         if text in dict_calendar:
-            start = str(dict_calendar[text]['start'])
-            end = str(dict_calendar[text]['end'])
             bot.delete_message(message.chat.id, message.message_id)
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("Главное меню", callback_data="back"))
-            asd = f'{text} | {start} - {end} | \n\n' + '\n\n'.join(dict_calendar[text]['Матчи'])
+            list_date = []
+            for date in dict_calendar[text]['Матчи']:
+                true_date = parent_word(datetime.strptime(date.split("|")[0].split()[0], '%d-%m-%Y').strftime('%d %B'))
+                if true_date not in list_date:
+                    list_date.append(true_date)
+                list_date.append('{} | {} | {}'.format( 
+                                                          date.split("|")[0].split()[1],
+                                                          date.split('|')[1],
+                                                          date.split('|')[2]))
             msg = bot.send_message(message.chat.id,
-                            asd,
+                            f"{message.text}\n\n" + '\n\n'.join(list_date),
                             reply_markup = markup)
             bot.register_next_step_handler(msg, view_tour, dict_calendar, country_button)
         elif message.text == 'Назад':
@@ -425,8 +449,10 @@ def view_tour (message, dict_calendar, country_button):
 def get_news(message, ref_dict):
     try:
         if message.text in ref_dict :
-            axzc = ref_dict.get(message.text)
-            list_photo_text = get_one_news(axzc, message.text[5:])
+            #axzc = ref_dict.get(message.text)
+            list_photo_text = get_one_news(ref_dict[message.text], message.text[5:])
+            #button1 = types.InlineKeyboardButton(message.text, url=f'https://t.me/iv?url=https%3A%2F%2Fwww.championat.com{ref_dict[message.text]}&rhash=f610f320a497f8')
+            #url=f'https://t.me/iv?url=https%3A%2F%2Fwww.championat.com{link}&rhash=f610f320a497f8')
             if len(list_photo_text[1]) >= 1024:
                 num_symb =list_photo_text[1][:1024].rfind('.') + 1
                 bot.send_photo(message.chat.id,
@@ -492,10 +518,10 @@ def get_ref_review(message, dict_review, text):
             url = f'{dict_review[message.text]}'
             response = sess.get(url)
             tree = html.fromstring(response.text)
-            review_list_lxml_href = tree.xpath(review_xpath_match_href)
-            if len(review_list_lxml_href) == 0:
-                review_list_lxml_href = tree.xpath(review_xpath_match_France_href)
-            review_ref = review_list_lxml_href[0][review_list_lxml_href[0].find('https'):len(review_list_lxml_href[0])]
+            list_href = tree.xpath(review_xpath_href)
+            if len(list_href) == 0:
+                list_href = tree.xpath(review_xpath_France_href)
+            review_ref = list_href[0][list_href[0].find('https'):len(list_href[0])]
             msg = bot.send_message(message.chat.id, f"{message.text}\n{review_ref}")
             return bot.register_next_step_handler(msg, get_ref_review,dict_review,text)
         elif message.text in dict_review and text in mass_review:
