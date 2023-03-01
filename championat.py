@@ -300,7 +300,8 @@ def get_next_date(name):
                     date_min.append(date_match)
     date_min.sort()
     return date_min[0]
-get_next_date('germany')
+#get_next_date('germany')
+
 def get_start_end_tour(name, next_date):
     country =  db[name]
     calendar = country.find_one({"Чемпионат": '2022/2023'})
