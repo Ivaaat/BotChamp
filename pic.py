@@ -50,10 +50,7 @@ def news_pic(logo_news, text_news):
               "Champ_footbaall", font=font, align="center")
     news_picture.show()
     return news_picture
-#news_pic('https://img.championat.com/s/735x490/news/big/q/r/barselona-svyazalas-s-siti-po-povodu-arendy-huliana-alvaresa-na-sleduyuschij-sezon_16776461802145452965.jpg',
-news_pic('https://img.championat.com/s/735x490/news/big/p/x/ochevidno-chto-reshenie-ne-s.jpg',
-         #'| «Барселона» связалась с «Сити» по поводу аренды Хулиана Альвареса на следующий сезон |')
-         '| «Очевидно, что решение не совсем справедливо». Барриос — о дисквалификациях в Кубке России «Очевидно, что решение не совсем справедливо». Барриос — о дисквалификациях в Кубке России |')
+
 
 
 def pic_champ(name, name_champ="",

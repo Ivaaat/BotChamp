@@ -180,9 +180,9 @@ def video(name="", channel="", query_video="highlights"):
 
 
 threading.Timer(1, video).start()
-# threading.Timer(1, video, ['spain', "@okkosport", 'ла лига.']).start()
-# threading.Timer(1, video, ['france', "@Ligue1official"]).start()
-# threading.Timer(1, video, ['england']).start()
+threading.Timer(1, video, ['spain', "@okkosport", 'ла лига.']).start()
+threading.Timer(1, video, ['france', "@Ligue1official"]).start()
+threading.Timer(1, video, ['england']).start()
 
 
 def user_verif(message):
