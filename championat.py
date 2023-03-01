@@ -2,14 +2,9 @@ from xpath_ref import *
 import requests
 from lxml import html
 from constants import mass_contry, mass_review, parse_site
-import time
 from pymongo import MongoClient
-from datetime import datetime, timedelta
+from datetime import datetime
 import locale
-from PIL import Image,  ImageFilter, ImageEnhance
-from PIL import ImageFont
-from PIL import ImageDraw
-from io import BytesIO
 
 locale.setlocale(locale.LC_ALL, "")
 
@@ -300,7 +295,6 @@ def get_next_date(name):
                     date_min.append(date_match)
     date_min.sort()
     return date_min[0]
-#get_next_date('germany')
 
 def get_start_end_tour(name, next_date):
     country =  db[name]
@@ -354,10 +348,3 @@ def get_start_end_tour(name, next_date):
         else:
             continue
     return dict_match, name_tour, len(tour['Матчи'])
-
-#get_start_end_tour("italy",get_next_date("italy") )
-        
-        
-
-
-    
