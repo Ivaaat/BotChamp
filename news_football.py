@@ -70,9 +70,9 @@ def rss_news(response):
                         logo = news_list['enclosure']['@url']
                     except KeyError:
                         logo = "https://img.championat.com/\
-                            s/735x490/news/big/f/i/v-uefa-\
-                                planirujut-sozdat-letnjuju-\
-                                    ligu-chempionov_1583405978161575552.jpg"
+s/735x490/news/big/f/i/v-uefa-\
+planirujut-sozdat-letnjuju-\
+ligu-chempionov_1583405978161575552.jpg"
             except TypeError:
                 continue
         if title != "":

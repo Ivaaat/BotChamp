@@ -3,6 +3,7 @@ from config import mass_review
 from bs4 import BeautifulSoup
 import re
 import time
+from lxml import etree
 
 
 def bs4_youtube(query):
@@ -50,21 +51,11 @@ https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
 def rutube_video(channel="255003", query='обзор'):
     req = requests.get(f'https://rutube.ru/metainfo/tv/{channel}')
     send = BeautifulSoup(req.text, 'html.parser')
-    search = send.find_all('script')
-    key = '"video_url":"https://rutube.ru/video/'
-    title = '"is_adult":false,"title":"'
     asd = {}
-    time.sleep(1)
-    data = re.findall(key + r"([^*]{32})", str(search))
-    data1 = re.findall(title + r"([^*]{150})", str(search))
-    i = 0
-    for clear_title in data1:
-        if query in clear_title.lower():
-            try:
-                asd[clear_title[:clear_title.find('"')]] = '\
-https://rutube.ru/video/' + data[i]
-            except IndexError:
-                break
-        i += 1
-        continue
+    video_title = etree.HTML(str(send))
+    title = video_title.xpath('//section/a/div/img/@alt')
+    video = video_title.xpath('//div/section/a/@href')
+    for i in range(len(video)):
+        if query in title[i].lower():
+            asd[title[i]] = video[i]
     return asd

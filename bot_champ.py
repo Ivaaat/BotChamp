@@ -8,7 +8,7 @@ import logging
 from news_football import news_parse, get_one_news, rss_news
 from youtube_parse import bs4_youtube, youtube_video, rutube_video
 from xpath_ref import review_xpath_href, review_xpath_title, review_xpath_date
-from xpath_ref import review_xpath_France_href
+from xpath_ref import review_xpath_France_href, review_xpath_match_href
 from datetime import datetime
 from config import mass_contry, mass_review
 from config import dict_site, list_name_site, rss_link
@@ -81,13 +81,13 @@ def parse_for_push(url):
     for i, url_ref in enumerate(review_list_lxml_href):
         response_ref = sess.get(url_ref)
         tree_ref = html.fromstring(response_ref.text)
-        review_href_list = tree_ref.xpath(review_xpath_href)
+        review_href_list = tree_ref.xpath(review_xpath_match_href)
         if len(review_href_list) == 0:
             review_href_list = tree_ref.xpath(review_xpath_France_href)
         review_ref = review_href_list[0][review_href_list[0].find('https'):
                                          len(review_href_list[0])]
         asd.append([(review_list_lxml_title[i].replace(
-            'видео обзор матча', " | ") +
+                    'видео обзор матча', " | ") +
                      review_list_lxml_date[i]), review_ref])
     return dict(asd)
 
@@ -106,7 +106,7 @@ def news():
                 if new_link != old_link:
                     pic = news_pic(logo, new_news)
                     inst_view = f'https://t.me/iv?url=https%3A%2F%2F\
-                        {new_link}&rhash=f610f320a497f8'
+{new_link}&rhash=f610f320a497f8'
                     markup = InlineKeyboardMarkup()
                     markup.add(InlineKeyboardButton(new_news, url=inst_view))
                     old_link = new_link
@@ -114,33 +114,6 @@ def news():
                         bot.send_photo(id, pic, reply_markup=markup)
         except Exception:
             bot.send_message(user_id, str('def news\n'))
-            time.sleep(timer)
-        time.sleep(timer)
-
-
-threading.Thread(target=news).start()
-
-
-def video_matchtv():
-    old_video_dict = rutube_video()
-    while True:
-        # Тут код парсинга
-        timer = 1800
-        list_user_push_true = [user_id for user_id
-                               in get_list_user() if get_push(user_id)]
-        try:
-            new_video_dict = rutube_video()
-            for desc_video, ref in new_video_dict.items():
-                if desc_video in old_video_dict:
-                    break
-                for id in list_user_push_true:
-                    bot.send_message(user_id, str('Вышел обзор\n'))
-                    message = bot.send_message(id, f"{desc_video}\n{ref}")
-                    if id < 0:
-                        bot.pin_chat_message(id, message.message_id)
-                old_video_dict[desc_video] = ref
-        except Exception:
-            bot.send_message(user_id, str('except video_matchtv\n'))
             time.sleep(timer)
         time.sleep(timer)
 
@@ -178,11 +151,11 @@ def video(name="", channel="", query_video="highlights"):
             time.sleep(timer)
         time.sleep(timer)
 
-
-threading.Timer(1, video).start()
-threading.Timer(1, video, ['spain', "@okkosport", 'ла лига.']).start()
-threading.Timer(1, video, ['france', "@Ligue1official"]).start()
-threading.Timer(1, video, ['england']).start()
+# threading.Thread(target=news).start()
+# threading.Timer(1, video).start()
+# threading.Timer(1, video, ['spain', "@okkosport", 'ла лига.']).start()
+# threading.Timer(1, video, ['france', "@Ligue1official"]).start()
+# threading.Timer(1, video, ['england']).start()
 
 
 def user_verif(message):
