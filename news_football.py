@@ -51,8 +51,8 @@ def get_one_news(link, query):
     else:
         list_photo_ref.append(
             "https://img.championat.com/s/735x490/news/big/f/i/\
-                v-uefa-planirujut-sozdat-letnjuju-ligu-\
-                    chempionov_1583405978161575552.jpg")
+v-uefa-planirujut-sozdat-letnjuju-ligu-\
+chempionov_1583405978161575552.jpg")
     list_photo_ref.append(string_news)
     return list_photo_ref
 

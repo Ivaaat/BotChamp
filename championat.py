@@ -36,9 +36,9 @@ class Championat:
         if self.country == "":
             self.country = "germany"
         self.url_championat = f'{self.url}/football/_{self.country}.html'
-        sess = requests.Session()
+        self.sess = requests.Session()
         self.sess.headers.update(User_agent)
-        response = sess.get(self.url_championat)
+        response = self.sess.get(self.url_championat)
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
 
@@ -55,10 +55,6 @@ class Calendar(Championat):
         self.response_text = response.text
         self.tree = html.fromstring(self.response_text)
         self.tour = self.tree.xpath(num_xpath_tour)
-        num_team = self.tree.xpath(
-            '//ul [@class="entity-header__facts js-entity-header-facts"]\
-            /li[3]/text()')
-        self.num_team = int(int(num_team[1].strip())/2)
 
     def get_date(self):
         return [" ".join(date.replace('.', '-').split()) for date in
@@ -186,6 +182,7 @@ class Team(Championat):
 def add_db(name, name_champ):
     country = db[name]
     calendar = Calendar(name)
+    table = Table(name)
     calendar_all = []
     tours = calendar.get_tour()
     dates = calendar.get_date()
@@ -198,8 +195,9 @@ def add_db(name, name_champ):
                         results[i]]])
     calendar_all.sort(key=lambda q: (int(q[0])))
     dict_calendar = {}
-    for i, j in enumerate(range(0, len(calendar_all), calendar.num_team), 1):
-        matches = calendar_all[j:j + calendar.num_team]
+    num_team = int(len(table.get_games())/2)
+    for i, j in enumerate(range(0, len(calendar_all), num_team), 1):
+        matches = calendar_all[j:j + num_team]
         for match_end in matches:
             if '– : –' in match_end[1]:
                 ends = False
@@ -210,13 +208,12 @@ def add_db(name, name_champ):
             'start':
             datetime.strptime(sort_date(matches[0][1][0]), '%d-%m-%Y %H:%M'),
             'end':
-            datetime.strptime(sort_date(matches[calendar.num_team - 1][1][0]),
+            datetime.strptime(sort_date(matches[num_team - 1][1][0]),
                               '%d-%m-%Y %H:%M'),
             'Закончен': ends,
                         }
     country.update_one({"Чемпионат": '2022/2023'},
                        {'$set': {'Календарь': dict_calendar}})
-    table = Table(name)
     points_stat = table.get_points()
     games_stat = table.get_games()
     wins_stat = table.get_wins()
