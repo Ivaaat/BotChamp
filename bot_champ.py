@@ -5,23 +5,23 @@ from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import time
 import logging
-from news_football import news_parse, get_one_news, rss_news
-from youtube_parse import bs4_youtube, youtube_video, rutube_video
+from datetime import datetime
+from pymongo import MongoClient
+from news_football import news_parse, get_one_news
+from youtube_parse import bs4_youtube
+import threading
 from xpath_ref import review_xpath_href, review_xpath_title, review_xpath_date
 from xpath_ref import review_xpath_France_href, review_xpath_match_href
-from datetime import datetime
 from config import mass_contry, mass_review
-from config import dict_site, list_name_site, rss_link
+from config import list_name_site
 from championat import add_db, get_tab, get_logo,  get_cal, parent_word
-from pict import news_pic
 from world_champ import WorldCup, world_playoff
-import threading
-from config import TOKEN, user_id, User_agent
-from pymongo import MongoClient
+from config import TOKEN, user_id, User_agent, channel_link, channel_id
 from user_mongo import add_user, view_users, get_push, get_user, get_list_user
 from user_mongo import set_push
+from parse_push import start_push
 
-
+threading.Thread(target=start_push).start()
 client = MongoClient()
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
@@ -32,17 +32,8 @@ bot.set_my_commands(
     ],
 )
 
-
+()
 bot.send_message(user_id, "Вышло обновление. Жми /start")
-
-
-@bot.message_handler(regexp='send')
-def userlist(message):
-    user_list = get_list_user()
-    for id in user_list:
-        bot.send_message(id, "Вышло обновление. Жми /start")
-
-
 sess = requests.Session()
 sess.headers.update(User_agent)
 
@@ -69,121 +60,33 @@ def menu_button(markup):
     return markup.add(button_menu)
 
 
-def parse_for_push(url):
-    response = sess.get(url)
-    tree = html.fromstring(response.text)
-    review_list_lxml_href = tree.xpath(review_xpath_href)
-    review_list_lxml_title = tree.xpath(review_xpath_title)
-    review_list_lxml_date = tree.xpath(review_xpath_date)
-    asd = []
-    if len(review_list_lxml_href) == 0:
-        review_list_lxml_href = tree.xpath(review_xpath_France_href)
-    for i, url_ref in enumerate(review_list_lxml_href):
-        response_ref = sess.get(url_ref)
-        tree_ref = html.fromstring(response_ref.text)
-        review_href_list = tree_ref.xpath(review_xpath_match_href)
-        if len(review_href_list) == 0:
-            review_href_list = tree_ref.xpath(review_xpath_France_href)
-        review_ref = review_href_list[0][review_href_list[0].find('https'):
-                                         len(review_href_list[0])]
-        asd.append([(review_list_lxml_title[i].replace(
-                    'видео обзор матча', " | ") +
-                     review_list_lxml_date[i]), review_ref])
-    return dict(asd)
-
-
-def news():
-    response = sess.get(rss_link)
-    _, old_link, _ = rss_news(response)
-    while True:
-        try:
-            timer = 120
-            list_user_push_true = [
-                user_id for user_id in get_list_user() if get_push(user_id)]
-            if len(list_user_push_true) > 0:
-                response = sess.get(rss_link)
-                new_news, new_link, logo = rss_news(response)
-                if new_link != old_link:
-                    pic = news_pic(logo, new_news)
-                    inst_view = f'https://t.me/iv?url=https%3A%2F%2F\
-{new_link}&rhash=f610f320a497f8'
-                    markup = InlineKeyboardMarkup()
-                    markup.add(InlineKeyboardButton(new_news, url=inst_view))
-                    old_link = new_link
-                    for id in list_user_push_true:
-                        bot.send_photo(id, pic, reply_markup=markup)
-        except Exception:
-            bot.send_message(user_id, str('def news\n'))
-            time.sleep(timer)
-        time.sleep(timer)
-
-
-def video(name="", channel="", query_video="highlights"):
-    if channel.startswith("@"):
-        old_video_dict = youtube_video(channel, query=query_video)
-    elif name == "":
-        old_video_dict = rutube_video()
-    else:
-        old_video_dict = parse_for_push(dict_site[name])
-    while True:
-        # Тут код парсинга
-        timer = 1800
-        list_user_true = [user_id for user_id in get_list_user()
-                          if get_push(user_id)]
-        try:
-            if channel.startswith("@"):
-                new_video_dict = youtube_video(name, query=query_video)
-            elif name == "":
-                new_video_dict = rutube_video()
-            else:
-                new_video_dict = parse_for_push(dict_site[name])
-            for desc_video, ref in new_video_dict.items():
-                if desc_video in old_video_dict:
-                    break
-                for id in list_user_true:
-                    bot.send_message(user_id, str(f'{name}\nВышел обзор\n'))
-                    message = bot.send_message(id, f"{desc_video}\n{ref}")
-                    if id < 0:
-                        bot.pin_chat_message(id, message.message_id)
-                old_video_dict[desc_video] = ref
-        except Exception:
-            bot.send_message(user_id, str(f'{name}\nexcept parse youtube\n'))
-            time.sleep(timer)
-        time.sleep(timer)
-
-# threading.Thread(target=news).start()
-# threading.Timer(1, video).start()
-# threading.Timer(1, video, ['spain', "@okkosport", 'ла лига.']).start()
-# threading.Timer(1, video, ['france', "@Ligue1official"]).start()
-# threading.Timer(1, video, ['england']).start()
-
-
 def user_verif(message):
-    word_verif = "Спартак"
-    if message.text != word_verif:
-        msg = bot.send_message(message.chat.id,
-                               "Напиши админу: https://t.me/vaneuser")
-        return bot.register_next_step_handler(msg, user_verif)
-    # base.create(f'{message.chat.first_name} {message.chat.username}',
-    #                   message.chat.id, unique_strings=True )
-    add_user(f'{message.chat.first_name} {message.chat.username}',
-             message.chat.id, push=False)
-    # bot.send_message(user_id,base.open())
-    bot.send_message(user_id, view_users())
-    bot.send_message(user_id,
-                     "Новый пользователь {} {} {}".format(
+    text = f"Чтобы получить доступ к боту подпишись \
+на канал:\n {channel_link} и нажми /start"
+    try:
+        member = bot.get_chat_member(channel_id, message.chat.id)
+        if member.status == 'left':
+            bot.send_message(message.chat.id, text)
+            return False
+    except telebot.apihelper.ApiTelegramException:
+        bot.send_message(message.chat.id, text)
+        return False
+    if not get_user(message.chat.id):
+        add_user(f'{message.chat.first_name} {message.chat.username}',
+                 message.chat.id, push=False)
+        bot.send_message(user_id,
+                         "Новый пользователь {} {} {}".format(
                                                     message.chat.id,
                                                     message.chat.first_name,
                                                     message.chat.username))
-    return button_country_news(message)
+    return True
 
 
 # СТАРТУЕМ ОТСЮДА
 @bot.message_handler(commands='start')
 def button_country_news(message):
-    if not get_user(message.chat.id):
-        msg = bot.send_message(message.chat.id, "Введи проверочное слово")
-        return bot.register_next_step_handler(msg, user_verif)
+    if not user_verif(message):
+        return
     markup = types.ReplyKeyboardMarkup()
     button_country = types.KeyboardButton('Чемпионаты🏆')
     button_news = types.KeyboardButton('Новости📰')
@@ -267,6 +170,12 @@ def table_text(message, back=""):
         bot.send_message(message.chat.id, 'Обновил таблицы')
         bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
         button_country_news(message)
+    elif message.text == 'users' and user_id == message.chat.id:
+        bot.send_message(user_id, view_users())
+    elif message.text == 'send' and user_id == message.chat.id:
+        user_list = get_list_user()
+        for id in user_list:
+            bot.send_message(id, "Вышло обновление. Жми /start")
     else:
         bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
         button_country_news(message)
@@ -555,7 +464,7 @@ def get_ref_review(message, dict_review, text):
             url = f'{dict_review[message.text]}'
             response = sess.get(url)
             tree = html.fromstring(response.text)
-            list_href = tree.xpath(review_xpath_href)
+            list_href = tree.xpath(review_xpath_match_href)
             if len(list_href) == 0:
                 list_href = tree.xpath(review_xpath_France_href)
             review_ref = list_href[0][list_href[0].find('https'):
@@ -580,8 +489,7 @@ def get_ref_review(message, dict_review, text):
 
 if __name__ == '__main__':
     while True:
-        try:  # добавляем try для бесперебойной работы
-            # bot.polling(none_stop=True)#запуск бота
+        try:
             bot.infinity_polling()
         except Exception:
-            time.sleep(10)  # в случае падения
+            time.sleep(10)

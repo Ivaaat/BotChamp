@@ -1,9 +1,8 @@
 import requests
-from config import mass_review
 from bs4 import BeautifulSoup
 import re
-import time
 from lxml import etree
+from config import mass_review
 
 
 def bs4_youtube(query):
@@ -24,13 +23,13 @@ def bs4_youtube(query):
     i = 0
     for clear_title in data1[:60]:
         asd[clear_title[1:clear_title.find('}')-1]] = '\
-            https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
+https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
         i += 1
     return asd
 
 
-def youtube_video(channel, query='highlights'):
-    req = requests.get(f'https://www.youtube.com/{channel}/videos')
+def youtube_video(name_list):
+    req = requests.get(f'https://www.youtube.com/{name_list[1]}/videos')
     send = BeautifulSoup(req.text, 'html.parser')
     search = send.find_all('script')
     key = r'"watchEndpoint":{"videoId":"'
@@ -40,7 +39,7 @@ def youtube_video(channel, query='highlights'):
     data1 = re.findall(title + r"([^*]{150})", str(search))
     i = 0
     for clear_title in data1:
-        if query in clear_title.lower():
+        if name_list[2] in clear_title.lower():
             asd[clear_title[1:clear_title.find('}')-1]] = '\
 https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
         i += 1
@@ -48,14 +47,14 @@ https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
     return asd
 
 
-def rutube_video(channel="255003", query='обзор'):
-    req = requests.get(f'https://rutube.ru/metainfo/tv/{channel}')
+def rutube_video(name_list):
+    req = requests.get(f'https://rutube.ru/metainfo/tv/{name_list[1]}')
     send = BeautifulSoup(req.text, 'html.parser')
     asd = {}
     video_title = etree.HTML(str(send))
     title = video_title.xpath('//section/a/div/img/@alt')
     video = video_title.xpath('//div/section/a/@href')
     for i in range(len(video)):
-        if query in title[i].lower():
+        if "обзор" in title[i].lower():
             asd[title[i]] = video[i]
     return asd
