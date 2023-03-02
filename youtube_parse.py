@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from lxml import etree
-from config import mass_review
 
 
 def bs4_youtube(query):
@@ -15,11 +14,6 @@ def bs4_youtube(query):
     asd = {}
     data = re.findall(key + r"([^*]{12})", str(search))
     data1 = re.findall(title + r"([^*]{150})", str(search))
-    if mass_review['Чемпионат НН 22-23. Городская лига'] == query:
-        data1 = data1[:len(data1)-1]
-        data1 = data1[::-1]
-        data = data[:len(data1)]
-        data = data[::-1]
     i = 0
     for clear_title in data1[:60]:
         asd[clear_title[1:clear_title.find('}')-1]] = '\
@@ -47,7 +41,7 @@ https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
     return asd
 
 
-def rutube_video(name_list):
+def rutube_video(name_list, query="обзор"):
     req = requests.get(f'https://rutube.ru/metainfo/tv/{name_list[1]}')
     send = BeautifulSoup(req.text, 'html.parser')
     asd = {}
@@ -55,6 +49,6 @@ def rutube_video(name_list):
     title = video_title.xpath('//section/a/div/img/@alt')
     video = video_title.xpath('//div/section/a/@href')
     for i in range(len(video)):
-        if "обзор" in title[i].lower():
+        if query in title[i].lower():
             asd[title[i]] = video[i]
     return asd

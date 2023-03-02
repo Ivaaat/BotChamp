@@ -1,7 +1,7 @@
 import requests
 from lxml import html
 import telebot
-from telebot import types
+from telebot import types, formatting
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import time
 import logging
@@ -16,10 +16,11 @@ from config import mass_contry, mass_review
 from config import list_name_site
 from championat import add_db, get_tab, get_logo,  get_cal, parent_word
 from world_champ import WorldCup, world_playoff
-from config import TOKEN, user_id, User_agent, channel_link, channel_id
+from config import TOKEN, user_id, User_agent, channel_link
+from config import channel_id, dict_matchtv
 from user_mongo import add_user, view_users, get_push, get_user, get_list_user
 from user_mongo import set_push
-from parse_push import start_push
+from parse_push import start_push, rutube_video
 
 threading.Thread(target=start_push).start()
 client = MongoClient()
@@ -32,10 +33,8 @@ bot.set_my_commands(
     ],
 )
 
-()
+
 bot.send_message(user_id, "Вышло обновление. Жми /start")
-sess = requests.Session()
-sess.headers.update(User_agent)
 
 
 # создание клавиатуры с название чемпионатов
@@ -274,15 +273,17 @@ def result_team(message, dict_team, country_button):
                     datetime.strptime(date.split("|")[0].split()[0],
                                       '%d-%m-%Y').strftime('%d %B'))
                 list_date.append(
-                    '{} {} | {} | {}'.format(true_date,
-                                             date.split("|")[0].split()[1],
-                                             date.split('|')[1],
-                                             date.split('|')[2]))
+                    formatting.mbold('{} {} | {} | {}\
+                                     '.format(true_date,
+                                              date.split("|")[0].split()[1],
+                                              date.split('|')[1],
+                                              date.split('|')[2])))
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
                                  get_logo(mass_contry[country_button], text),
                                  caption='\n\n'.join(list_date),
-                                 reply_markup=markup
+                                 reply_markup=markup,
+                                 parse_mode="MarkdownV2"
                                  )
             bot.register_next_step_handler(msg, result_team, dict_team,
                                            country_button)
@@ -291,9 +292,13 @@ def result_team(message, dict_team, country_button):
         elif message.text == 'Назад':
             calendar_and_table(message, back=country_button)
         else:
-            raise KeyError("Выбери команду:")
-    except Exception as e:
-        msg = bot.send_message(message.chat.id, e)
+            raise KeyError
+    except Exception:
+        msg = bot.send_message(message.chat.id,
+                               f'Дорогой, {message.chat.first_name}. \
+✅Выбери команду!\n\n\
+    ✅Или нажми назад, чтобы выбрать чемпионат\n\
+    ✅Или нажми главное меню, чтобы выбрать другую категорию')
         bot.register_next_step_handler(msg, result_team, dict_team,
                                        country_button)
 
@@ -350,16 +355,19 @@ def view_tour(message, dict_calendar, country_button):
                 true_date = parent_word(
                     datetime.strptime(date.split("|")[0].split()[0],
                                       '%d-%m-%Y').strftime('%d %B'))
+                true_date = f"*_{true_date}:_*"
                 if true_date not in list_date:
                     list_date.append(true_date)
-                list_date.append('{} | {} | {}'.format(
+                list_date.append(formatting.mbold('{} | {} | {}'.format(
                     date.split("|")[0].split()[1],
                     date.split('|')[1],
-                    date.split('|')[2]))
+                    date.split('|')[2])))
+            text = formatting.mbold(message.text)
             msg = bot.send_message(message.chat.id,
-                                   f"{message.text}\n\n" +
+                                   f"{text}\n\n" +
                                    '\n\n'.join(list_date),
-                                   reply_markup=markup)
+                                   reply_markup=markup,
+                                   parse_mode='MarkdownV2')
             bot.register_next_step_handler(msg, view_tour, dict_calendar,
                                            country_button)
         elif message.text == 'Назад':
@@ -384,16 +392,11 @@ def view_tour(message, dict_calendar, country_button):
 def get_news(message, ref_dict):
     try:
         if message.text in ref_dict:
-            # axzc = ref_dict.get(message.text)
             list_photo_text = get_one_news(ref_dict[message.text],
                                            message.text[5:])
-            # button1 = types.InlineKeyboardButton(message.text,
-            # url=f'https://t.me/iv?url=https%3A%2F%2Fwww.championat.com{ref_dict[message.text]}&rhash=f610f320a497f8')
-            # url=f'https://t.me/iv?url=https%3A%2F%2Fwww.championat.com{link}&rhash=f610f320a497f8')
             if len(list_photo_text[1]) >= 1024:
                 num_symb = list_photo_text[1][:1024].rfind('.') + 1
                 bot.send_photo(message.chat.id,
-                               # pic,
                                list_photo_text[0],
                                caption=list_photo_text[1][:num_symb])
                 for x in range(num_symb, len(list_photo_text[1]), 1024):
@@ -402,7 +405,6 @@ def get_news(message, ref_dict):
             else:
                 msg = bot.send_photo(message.chat.id,
                                      list_photo_text[0],
-                                     # pic,#list_photo_text[0],
                                      caption=list_photo_text[1],
                                      )
             bot.register_next_step_handler(msg, get_news, ref_dict)
@@ -423,6 +425,8 @@ def get_dict_review(message, back=""):
     back_button(markup)
     try:
         if message.text in list_name_site or back in list_name_site:
+            sess = requests.Session()
+            sess.headers.update(User_agent)
             url = f'{mass_review[message.text]}'
             response = sess.get(url)
             tree = html.fromstring(response.text)
@@ -442,14 +446,20 @@ def get_dict_review(message, back=""):
             return bot.register_next_step_handler(msg, get_ref_review,
                                                   dict_review, message.text)
         elif message.text in mass_review or back in mass_review:
-            dict_review = bs4_youtube(mass_review[message.text])
-            for key in dict_review:
+            try:
+                dict_review_rut = rutube_video(('', '255003'),
+                                               dict_matchtv[
+                    mass_contry[message.text]])
+            except KeyError:
+                dict_review_rut = {}
+            dict_review_rut.update(bs4_youtube(mass_review[message.text]))
+            for key in dict_review_rut:
                 button_champ_rev = types.KeyboardButton(key)
                 markup.add(button_champ_rev)
             msg = bot.send_message(message.chat.id, 'Выбери обзор',
                                    reply_markup=markup)
-            bot.register_next_step_handler(msg, get_ref_review, dict_review,
-                                           message.text)
+            bot.register_next_step_handler(msg, get_ref_review,
+                                           dict_review_rut, message.text)
         elif message.text == 'Назад':
             button_country_news(message)
         else:
@@ -459,6 +469,8 @@ def get_dict_review(message, back=""):
 
 
 def get_ref_review(message, dict_review, text):
+    sess = requests.Session()
+    sess.headers.update(User_agent)
     try:
         if message.text in dict_review and text in list_name_site:
             url = f'{dict_review[message.text]}'
@@ -474,7 +486,9 @@ def get_ref_review(message, dict_review, text):
             return bot.register_next_step_handler(msg, get_ref_review,
                                                   dict_review, text)
         elif message.text in dict_review and text in mass_review:
-            msg = bot.send_message(message.chat.id, dict_review[message.text])
+            msg = bot.send_message(message.chat.id,
+                                   f"{message.text}\n\
+{dict_review[message.text]}")
             return bot.register_next_step_handler(msg, get_ref_review,
                                                   dict_review, text)
         elif message.text == 'Главное меню':
