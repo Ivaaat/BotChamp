@@ -2,17 +2,14 @@ from xpath_ref import logo_ref_xpath, parse_xpath_text, num_xpath_tour
 from xpath_ref import parse_xpath_result, date_xpath_match, logo_xpath
 import requests
 from lxml import html
-from config import parse_site
+from config import parse_site, client_champ
 from pymongo import MongoClient
 from datetime import datetime
 import locale
 from config import User_agent
 
 locale.setlocale(locale.LC_ALL, "")
-client = MongoClient()
-db = client['json_champ']
-users_col = db['users']
-
+db = client_champ['json_champ']
 
 def parent_word(month):
     if month.split()[1].endswith("ь"):
@@ -68,7 +65,7 @@ class Calendar(Championat):
             '//td [@class="stat-results__link"]//@title')]
 
     def get_result(self):
-        return [result.strip() for result in
+        return [result.replace('– : –','').strip() for result in
                 self.tree.xpath(parse_xpath_result)]
 
     def get_calendar(self):
@@ -199,7 +196,7 @@ def add_db(name, name_champ):
     for i, j in enumerate(range(0, len(calendar_all), num_team), 1):
         matches = calendar_all[j:j + num_team]
         for match_end in matches:
-            if '– : –' in match_end[1]:
+            if '' in match_end[1]:
                 ends = False
                 break
             ends = True
@@ -277,12 +274,12 @@ def get_tab(name):
             if team not in ['_id', 'Чемпионат', 'Календарь', 'Лого']:
                 res_six_match = [
                     teams for teams in
-                    stat['Календарь'] if not teams.endswith("– : –")]
+                    stat['Календарь'] if not teams.endswith(" ")]
                 clear_table.append([team, [
                                     stat['Таблица']['Игры'],
                                     stat['Таблица']['Очки'],
                                     stat['Таблица']['М'],
-                                    res_six_match[len(res_six_match) - 6:]]])
+                                    res_six_match[-6:]]])
         clear_table.sort(key=lambda b: (int(b[1][1]),
                                         int(b[1][2].split("-")[0]) - int(
             b[1][2].split("-")[1])))

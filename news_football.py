@@ -2,7 +2,48 @@ import requests
 from lxml import html
 import xmltodict
 # import textwrap
-from config import parse_site, User_agent
+from config import parse_site, User_agent, client_champ,rss_link, user_id, TOKEN
+from datetime import datetime
+import time
+from pymongo import MongoClient, errors
+import threading
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pict import news_pic
+import telebot
+import locale
+
+bot = telebot.TeleBot(TOKEN)
+sess = requests.Session()
+sess.headers.update(User_agent)
+
+
+def news():
+    db = client_champ['users-table']
+    users_col = db['users']
+    timer = 120
+    while True:
+        try:
+            if users_col.count_documents({'Push':True}) > 0:
+                response = sess.get(rss_link)
+                list_news = rss_news(response)
+                if list_news is None:
+                    time.sleep(timer)
+                    continue
+                else:
+                    for news in list_news:
+                        pic = news_pic(news['logo'], news['title'])
+                        inst_view = f'https://t.me/iv?url=https%3A%2F%2F\
+{news["link"]}&rhash=f610f320a497f8'
+                        markup = InlineKeyboardMarkup()
+                        markup.add(InlineKeyboardButton(news['title'], url=inst_view))
+                        for id in users_col.find({'Push':True}):
+                            bot.send_photo(id['_id'], pic, reply_markup=markup)
+            time.sleep(timer)
+        except Exception:
+            bot.send_message(user_id, str('def news\n'))
+            time.sleep(timer)
+
+threading.Thread(target=news).start()
 
 
 def news_parse():
@@ -24,16 +65,13 @@ def news_parse():
     return news
 
 
-def get_one_news(link, query):
+def get_one_news(link):
     string_news = ""
     sess = requests.Session()
     sess.headers.update(User_agent)
-    response = sess.get('{}{}'.format(parse_site, link))
-    list_photo_ref = []
+    response = sess.get(link)
     tree1 = html.fromstring(response.text)
     text_site = tree1.xpath('//*[@data-type = "news"]/p//text()')
-    ref_photo = tree1.xpath('//div [@class = "article-head__photo"]//@src')
-    ref_photo1 = tree1.xpath('//div [@class = "content-photo"]//@data-src')
     list_black = ['Полностью интервью', 'Новость по теме', 'Видеоролик:']
     clear_text = text_site
     for srt in text_site:
@@ -42,42 +80,53 @@ def get_one_news(link, query):
                 i = text_site.index(srt)
                 clear_text = text_site[:i]
                 break
-    # list_text = textwrap.wrap(' '.join(clear_text).strip(),width=40)
     string_news = ' '.join(clear_text)
-    if len(ref_photo) != 0:
-        list_photo_ref.append(ref_photo[0])
-    elif len(ref_photo1) != 0:
-        list_photo_ref.append(ref_photo1[0])
-    else:
-        list_photo_ref.append(
-            "https://img.championat.com/s/735x490/news/big/f/i/\
-v-uefa-planirujut-sozdat-letnjuju-ligu-\
-chempionov_1583405978161575552.jpg")
-    list_photo_ref.append(string_news)
-    return list_photo_ref
+    return string_news
 
 
 def rss_news(response):
+    client = MongoClient()
+    dbc = client['json_champ']
+    news_coll = dbc['news']
     asd = xmltodict.parse(response.text)
-    title = ""
+    list_news = []
     for news_list in asd['rss']['channel']['item']:
-        for news in news_list['category']:
-            try:
-                if news['@domain'] == 'content_importance':
-                    link = news_list['link']
-                    title = news_list["title"]
-                    try:
-                        logo = news_list['enclosure']['@url']
-                    except KeyError:
-                        logo = "https://img.championat.com/\
+        link = news_list['link']
+        title = news_list["title"].replace('&#039;','\'')
+        locale.setlocale(locale.LC_TIME, ('en_EN', 'UTF-8'))
+        date = datetime.strptime(news_list['pubDate'].replace('+0300',"").strip(),'%a, %d %b %Y %H:%M:%S')
+        locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
+        try:
+            logo = news_list['enclosure']['@url']
+        except KeyError:
+            logo = "https://img.championat.com/\
 s/735x490/news/big/f/i/v-uefa-\
 planirujut-sozdat-letnjuju-\
 ligu-chempionov_1583405978161575552.jpg"
-            except TypeError:
-                continue
-        if title != "":
-            break
-    return title, link.replace('https://', ""), logo
+        text = get_one_news(link)
+        for news in news_list['category']:
+                content_importance = False
+                try:
+                    if news['@domain'] == 'content_importance':
+                        content_importance = True
+                except TypeError:
+                    continue
+        dict_news = {
+            'title':title,
+            'link':link.replace('https://', ""), 
+            'date':date,
+            'logo':logo,
+            'text': text,
+            'content_importance':content_importance}
+        try:
+            news_coll.insert_one(dict_news)
+            if dict_news['content_importance']:
+                list_news.append(dict_news)
+        except errors.DuplicateKeyError:
+            if len(list_news) == 0:
+                return None
+            else:
+                return list_news
 
 
 def req_yandex(text):

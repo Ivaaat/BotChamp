@@ -1,7 +1,9 @@
 from pymongo import MongoClient
 
-client = MongoClient()
-db = client['users-table']
+client_user = MongoClient()
+db = client_user['users-table']
+#db.auth('user_id', '12345')
+
 users_col = db['users']
 
 
@@ -15,7 +17,7 @@ def add_user(employee_name, id, push=False):
         return True
     except Exception():
         return False
-
+    
 
 def get_list_user():
     list_user = []
