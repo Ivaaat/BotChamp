@@ -14,6 +14,7 @@ from user_mongo import add_user, view_users, get_push, get_user, get_list_user
 from user_mongo import set_push
 import news_football 
 import youtube_parse 
+from testd import tomorrow
 
 
 
@@ -80,8 +81,9 @@ def button_country_news(message):
     button_country = types.KeyboardButton('Чемпионаты🏆')
     button_news = types.KeyboardButton('Новости📰')
     button_review = types.KeyboardButton('Обзоры⚽')
+    button_live = types.KeyboardButton('Ближайшие матчи')
     markup.add(button_country, button_news)
-    markup.add(button_review)
+    markup.add(button_review, button_live)
     if get_push(message.chat.id):
         ne = 'не'
     else:
@@ -134,7 +136,6 @@ def table_text(message, back=""):
         back_button(markup)
         news_coll = db['news']
         dict_news = {}
-        #dict_news = news_parse()
         for news in news_coll.find().limit(50).sort('date',-1):
             date = news['date'].strftime("%H:%M")
             title = '{} {}'.format(date, news['title']) 
@@ -164,6 +165,15 @@ def table_text(message, back=""):
         bot.send_message(message.chat.id, 'Обновил таблицы')
         bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
         button_country_news(message)
+    elif 'Ближайшие матчи' in [message.text, back]:
+        back_button(markup)
+        #markup.add(types.KeyboardButton('Live'))
+        buttons = ['Live','Вчера', 'Сегодня', 'Завтра']
+        markup.add(buttons[0])
+        markup.add(*[x for x in buttons[1:]])
+        msg = bot.send_message(message.chat.id, 'Матчи',
+                               reply_markup=markup)
+        bot.register_next_step_handler(msg, button_days, buttons)
     elif message.text == 'users' and user_id == message.chat.id:
         bot.send_message(user_id, view_users())
     elif message.text == 'send' and user_id == message.chat.id:
@@ -173,6 +183,29 @@ def table_text(message, back=""):
     else:
         bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
         button_country_news(message)
+
+
+def button_days(message, buttons):
+    #bot.delete_message(message.chat.id,message_id= message.message_id)
+    if message.text in buttons:
+        markup = types.ReplyKeyboardMarkup()
+        back_button(markup)
+        matches = tomorrow(message.text)
+        if matches is None:
+            msg = bot.send_message(message.chat.id, 'Нет матчей')
+            return bot.register_next_step_handler(msg, button_days, buttons)
+        for match in matches:
+            markup.add(types.KeyboardButton(match))
+        msg = bot.send_message(message.chat.id, message.text,
+                                reply_markup=markup)
+        bot.register_next_step_handler(msg, match_res)
+    else:
+        bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
+        button_country_news(message)
+    
+
+def match_res(message):
+    table_text(message,back='Ближайшие матчи')
 
 
 # Создаем две кнопки "Календарь" и "Таблица "
@@ -272,7 +305,7 @@ def result_team(message, dict_team, country_button):
                                      '.format(true_date,
                                               date.split("|")[0],
                                               date.split('|')[1],
-                                              date.split('|')[2])))
+                                              date.split('|')[2]),escape=True))
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
                                  get_logo(mass_contry[country_button], text),
@@ -347,11 +380,11 @@ def view_tour(message, dict_calendar, country_button):
                                             callback_data="back"))
             list_date = []
             for date in dict_calendar[text]['Матчи']:
-                true_date = parent_word(
+                true_date = parent_word(formatting.mitalic(
                     datetime.strptime(date.split("|")[0].split()[0],
-                                      '%d-%m-%Y').strftime('%d %B'))
+                                      '%d-%m-%Y').strftime('%d %B'),escape=True))
                 if true_date not in list_date:
-                    list_date.append(formatting.mitalic(true_date,escape=True))
+                    list_date.append(true_date)
                 list_date.append(formatting.mbold('{} | {} | {}'.format(
                     date.split("|")[0].split()[1],
                     date.split('|')[1],
@@ -418,9 +451,13 @@ def get_dict_review(message, back=""):
     menu_button(markup)
     back_button(markup)
     video_coll = db['video']
+    if message.text == list_name_site[0]:
+        query = None
+    else:
+        query = {'country': message.text}
     try:
         if message.text in list_name_site or back in list_name_site:
-            for key in video_coll.find({'country': message.text}).sort('_id',-1).limit(50):
+            for key in video_coll.find(query).sort('_id',-1).limit(50):
                 button_champ_rev = types.KeyboardButton(key["desc"])
                 dict_review[key["desc"]] = key["link"]
                 markup.add(button_champ_rev)

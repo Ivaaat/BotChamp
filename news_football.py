@@ -43,7 +43,7 @@ def news():
             bot.send_message(user_id, str('def news\n'))
             time.sleep(timer)
 
-threading.Thread(target=news).start()
+# threading.Thread(target=news).start()
 
 
 def news_parse():
@@ -93,7 +93,7 @@ def rss_news(response):
     for news_list in asd['rss']['channel']['item']:
         link = news_list['link']
         title = news_list["title"].replace('&#039;','\'')
-        locale.setlocale(locale.LC_TIME, ('en_EN', 'UTF-8'))
+        locale.setlocale(locale.LC_TIME, ('en_US', 'UTF-8'))
         date = datetime.strptime(news_list['pubDate'].replace('+0300',"").strip(),'%a, %d %b %Y %H:%M:%S')
         locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
         try:

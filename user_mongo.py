@@ -1,7 +1,7 @@
 from pymongo import MongoClient
+from config import client_champ
 
-client_user = MongoClient()
-db = client_user['users-table']
+db = client_champ['users-table']
 #db.auth('user_id', '12345')
 
 users_col = db['users']
