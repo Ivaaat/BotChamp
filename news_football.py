@@ -43,8 +43,7 @@ def news():
             bot.send_message(user_id, str('def news\n'))
             time.sleep(timer)
 
-# threading.Thread(target=news).start()
-
+threading.Thread(target=news).start()
 
 def news_parse():
     sess = requests.Session()

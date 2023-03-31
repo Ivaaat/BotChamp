@@ -18,9 +18,9 @@ def tomorrow(button):
             day = 1
         live = False
         today_date = (datetime.now() + timedelta(day)).strftime("%Y-%m-%d")
-    parse_site = f"{parse_site}/stat/{today_date}.json"
+    parse_link = f"{parse_site}/stat/{today_date}.json"
     matches = []
-    response = sess.get(parse_site).json()
+    response = sess.get(parse_link).json()
     try:
         dict_now = response['matches']['football']['tournaments']
     except KeyError:
