@@ -85,6 +85,8 @@ def football_video(link):
         list_href = tree.xpath(review_xpath_match_href)
         if len(list_href) == 0:
             list_href = tree.xpath(review_xpath_France_href)
+            if len(list_href) == 0:
+                continue
         try:
             review_ref = list_href[0].split('\'')[1]
         except IndexError:
@@ -96,10 +98,10 @@ def football_video(link):
         
 
 def send_and_bd(func, dict_query):
-    try:
-        db = client_champ['users-table']
-        users_col = db['users']
-        while True:
+    db = client_champ['users-table']
+    users_col = db['users']
+    while True:
+        try:
             for key, query in dict_query.items():
                 video_dict = func(query)
                 for desc_video, link in video_dict.items():
@@ -114,15 +116,16 @@ def send_and_bd(func, dict_query):
                         break
                 time.sleep(120)
             time.sleep(1800)
-    except Exception as e:
-        bot.send_message(377190896, f"пиздарики{key}\n {e}")
+        except Exception as e:
+            bot.send_message(377190896, f"пиздарики{key}\n {e}")
+            time.sleep(1800)
                 
 # send_and_bd(rutube_video,dict_rutube)
 # send_and_bd(youtube_video,dict_youtube)
 # send_and_bd(football_video,dict_footbal_video)
-# threading.Timer(1, send_and_bd, [rutube_video, dict_rutube]).start()
-# threading.Timer(2, send_and_bd, [youtube_video, dict_youtube]).start()
-# threading.Timer(3, send_and_bd, [football_video, dict_footbal_video]).start()
+threading.Timer(1, send_and_bd, [rutube_video, dict_rutube]).start()
+threading.Timer(2, send_and_bd, [youtube_video, dict_youtube]).start()
+threading.Timer(3, send_and_bd, [football_video, dict_footbal_video]).start()
 
 def add_video(func, dict_query):
     for key, query in dict_query.items():
