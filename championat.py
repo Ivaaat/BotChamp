@@ -381,34 +381,37 @@ def get_start_end_tour(name, next_date):
 def update_base():
     i = 0
     while True:
-        sess = requests.Session()
-        sess.headers.update(User_agent) 
-        today_date = (datetime.now() + timedelta(i)).strftime("%Y-%m-%d")
-        parse_site = f"https://www.championat.com/stat/{today_date}.json"
-        response = sess.get(parse_site).json()
         try:
-            dict_now = response['matches']['football']['tournaments']
-            clear_time = []
-            for key, value in dict_now.items():
-                if key in dict_match:
-                    for match in value['matches']:
-                        time_match = datetime.strptime(match['time_str'],'%d.%m.%Y %H:%M') + timedelta(hours=2)
-                        if [time_match, dict_match[key]] not in clear_time:
-                            clear_time.append([time_match, dict_match[key]])
-            if len(clear_time) == 0:
-                raise KeyError
-            clear_time.sort()
-        except KeyError:
-            i+=1
-            continue
-        for date_match in clear_time:
-            time_sleep = date_match[0] - datetime.now()
+            sess = requests.Session()
+            sess.headers.update(User_agent) 
+            today_date = (datetime.now() + timedelta(i)).strftime("%Y-%m-%d")
+            parse_link = f"{parse_site}/stat/{today_date}.json"
+            response = sess.get(parse_link).json()
             try:
-                time.sleep(time_sleep.total_seconds())
-            except ValueError:
+                dict_now = response['matches']['football']['tournaments']
+                clear_time = []
+                for key, value in dict_now.items():
+                    if key in dict_match:
+                        for match in value['matches']:
+                            time_match = datetime.strptime(match['time_str'],'%d.%m.%Y %H:%M') + timedelta(hours=2)
+                            if [time_match, dict_match[key]] not in clear_time:
+                                clear_time.append([time_match, dict_match[key]])
+                if len(clear_time) == 0:
+                    raise KeyError
+                clear_time.sort()
+            except KeyError:
+                i+=1
                 continue
-            add_db(date_match[1],'2022/2023') 
-        i+=1
+            for date_match in clear_time:
+                time_sleep = date_match[0] - datetime.now()
+                try:
+                    time.sleep(time_sleep.total_seconds())
+                except ValueError:
+                    continue
+                add_db(date_match[1],'2022/2023') 
+            i+=1
+        except:
+            time.sleep(120)
   
 
 dict_match = {
