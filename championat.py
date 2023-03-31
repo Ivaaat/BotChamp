@@ -4,9 +4,11 @@ import requests
 from lxml import html
 from config import parse_site, client_champ
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timedelta
 import locale
 from config import User_agent
+import time
+import threading
 
 locale.setlocale(locale.LC_ALL, "")
 db = client_champ['json_champ']
@@ -374,3 +376,47 @@ def get_start_end_tour(name, next_date):
         else:
             continue
     return dict_match, name_tour, len(tour['Матчи'])
+
+
+def update_base():
+    i = 0
+    while True:
+        sess = requests.Session()
+        sess.headers.update(User_agent) 
+        today_date = (datetime.now() + timedelta(i)).strftime("%Y-%m-%d")
+        parse_site = f"https://www.championat.com/stat/{today_date}.json"
+        response = sess.get(parse_site).json()
+        try:
+            dict_now = response['matches']['football']['tournaments']
+            clear_time = []
+            for key, value in dict_now.items():
+                if key in dict_match:
+                    for match in value['matches']:
+                        time_match = datetime.strptime(match['time_str'],'%d.%m.%Y %H:%M') + timedelta(hours=2)
+                        if [time_match, dict_match[key]] not in clear_time:
+                            clear_time.append([time_match, dict_match[key]])
+            if len(clear_time) == 0:
+                raise KeyError
+            clear_time.sort()
+        except KeyError:
+            i+=1
+            continue
+        for date_match in clear_time:
+            time_sleep = date_match[0] - datetime.now()
+            try:
+                time.sleep(time_sleep.total_seconds())
+            except ValueError:
+                continue
+            add_db(date_match[1],'2022/2023') 
+        i+=1
+  
+
+dict_match = {
+'football-5025':'england',
+'football-4987': 'russiapl',
+'football-5047': 'spain',
+'football-5029': 'france',
+'football-5057': 'italy',
+'football-5027': 'germany',
+}
+threading.Thread(target=update_base).start()

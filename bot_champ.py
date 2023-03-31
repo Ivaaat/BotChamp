@@ -6,15 +6,15 @@ import logging
 from datetime import datetime
 from config import mass_contry
 from config import list_name_site, db
-from championat import add_db, get_tab, get_logo,  get_cal, parent_word
+from championat import add_db, get_tab, get_logo, get_cal, parent_word
 from world_champ import WorldCup, world_playoff
 from config import TOKEN, user_id, channel_link
 from config import channel_id
-from user_mongo import add_user, view_users, get_push, get_user, get_list_user
-from user_mongo import set_push
+from user_mongo import add_user, view_users, get_push
+from user_mongo import set_push, get_user, get_list_user
 import news_football 
 import youtube_parse 
-from testd import tomorrow
+from live import tomorrow
 
 
 

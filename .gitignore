@@ -9,7 +9,6 @@ __pycache__
 constants.py
 xpath_ref.py
 config.py
-live.py
 testd.py
 MyDataBase.py
 add_db.py
