@@ -393,7 +393,7 @@ def update_base():
                 for key, value in dict_now.items():
                     if key in dict_match:
                         for match in value['matches']:
-                            time_match = datetime.strptime(match['time_str'],'%d.%m.%Y %H:%M') + timedelta(hours=2)
+                            time_match = datetime.strptime(match['time_str'],'%d.%m.%Y %H:%M') + timedelta(hours=2, minutes=30)
                             if [time_match, dict_match[key]] not in clear_time:
                                 clear_time.append([time_match, dict_match[key]])
                 if len(clear_time) == 0:

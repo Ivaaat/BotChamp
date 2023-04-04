@@ -51,16 +51,16 @@ def menu_button(markup):
 
 
 def user_verif(message):
-    text = f"Чтобы получить доступ к боту подпишись \
-на канал:\n {channel_link} и нажми /start"
-    try:
-        member = bot.get_chat_member(channel_id, message.chat.id)
-        if member.status == 'left':
-            bot.send_message(message.chat.id, text)
-            return False
-    except telebot.apihelper.ApiTelegramException:
-        bot.send_message(message.chat.id, text)
-        return False
+#     text = f"Чтобы получить доступ к боту подпишись \
+# на канал:\n {channel_link} и нажми /start"
+#     try:
+#         member = bot.get_chat_member(channel_id, message.chat.id)
+#         if member.status == 'left':
+#             bot.send_message(message.chat.id, text)
+#             return False
+#     except telebot.apihelper.ApiTelegramException:
+#         bot.send_message(message.chat.id, text)
+#         return False
     if not get_user(message.chat.id):
         add_user(f'{message.chat.first_name} {message.chat.username}',
                  message.chat.id, push=False)
@@ -75,8 +75,8 @@ def user_verif(message):
 # СТАРТУЕМ ОТСЮДА
 @bot.message_handler(content_types='text')
 def button_country_news(message):
-    # if not user_verif(message):
-    #     return
+    if not user_verif(message):
+        return
     markup = types.ReplyKeyboardMarkup()
     button_country = types.KeyboardButton('Чемпионаты🏆')
     button_news = types.KeyboardButton('Новости📰')

@@ -90,7 +90,10 @@ def football_video(link):
         try:
             review_ref = list_href[0].split('\'')[1]
         except IndexError:
-            review_ref = list_href[0].split('=')[1]
+            try:
+                review_ref = list_href[0].split('=')[1]
+            except IndexError:
+                review_ref = list_href[0]
         title = '{} {}'.format(review_title.strip(), 
                                review_list_date[i].strip())
         dict_review[title] = review_ref
@@ -111,7 +114,10 @@ def send_and_bd(func, dict_query):
                                         "link": link, 
                                         "country":key})
                         for id in users_col.find({'Push':True}):
-                            bot.send_message(id, "{}\n {}".format(desc_video, link))
+                            int_id = int(id['_id'])
+                            msg = bot.send_message(int_id, "{}\n {}".format(desc_video, link))
+                            if int_id < 0:
+                                bot.pin_chat_message(int_id, msg.message_id)
                     except Exception:
                         break
                 time.sleep(120)
