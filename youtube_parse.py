@@ -93,7 +93,8 @@ def football_video(link):
             try:
                 review_ref = list_href[0].split('=')[1]
             except IndexError:
-                review_ref = list_href[0]
+                # review_ref = list_href[0]
+                continue
         title = '{} {}'.format(review_title.strip(), 
                                review_list_date[i].strip())
         dict_review[title] = review_ref
