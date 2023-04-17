@@ -15,12 +15,42 @@ from user_mongo import set_push, get_user, get_list_user
 import news_football 
 import youtube_parse 
 from live import tomorrow
+import flask
+import socket
+
+WEBHOOK_HOST = socket.gethostbyname(socket.gethostname())
+WEBHOOK_PORT = 8443  # 443, 80, 88 or 8443 (port need to be 'open')
+WEBHOOK_LISTEN = '0.0.0.0'
+
+WEBHOOK_SSL_CERT = './webhook_cert.pem'  # Path to the ssl certificate
+WEBHOOK_SSL_PRIV = './webhook_pkey.pem'
+
+WEBHOOK_URL_BASE = "https://%s:%s" % (WEBHOOK_HOST, WEBHOOK_PORT)
+WEBHOOK_URL_PATH = "/%s/" % (TOKEN)
+
+app = flask.Flask(__name__)
 
 
+# Empty webserver index, return nothing, just http 200
+@app.route('/', methods=['GET', 'HEAD'])
+def index():
+    return ''
 
-# logger = telebot.logger
-# telebot.logger.setLevel(logging.DEBUG)
-bot = telebot.TeleBot(TOKEN)  # Токен
+
+# Process webhook calls
+@app.route(WEBHOOK_URL_PATH, methods=['POST'])
+def webhook():
+    if flask.request.headers.get('content-type') == 'application/json':
+        json_string = flask.request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return ''
+    else:
+        flask.abort(403)
+
+logger = telebot.logger
+telebot.logger.setLevel(logging.INFO)
+bot = telebot.TeleBot(TOKEN,skip_pending=True)  # Токен
 bot.set_my_commands(
     commands=[
         telebot.types.BotCommand("start", "start_parse"),
@@ -73,7 +103,8 @@ def user_verif(message):
 
 
 # СТАРТУЕМ ОТСЮДА
-@bot.message_handler(content_types='text')
+#@bot.message_handler(content_types='text')
+@bot.message_handler(func=lambda message: True, content_types=['text'])
 def button_country_news(message):
     if not user_verif(message):
         return
@@ -297,9 +328,8 @@ def result_team(message, dict_team, country_button):
         if text in dict_team:
             list_date = []
             for date in dict_team[text][3]:
-                true_date = parent_word(
-                    datetime.strptime(date.split("|")[0].split()[0],
-                                      '%d-%m-%Y').strftime('%d %B'))
+                true_date = datetime.strptime(date.split("|")[0].split()[0],
+                                      '%d-%m-%Y').strftime('%d %B')
                 list_date.append(
                     formatting.mbold('{} {} | {} | {}\
                                      '.format(true_date,
@@ -343,14 +373,16 @@ def create_calendar(message, country_button):
         menu_button(markup)
         back_button(markup)
         for key in dict_calendar:
-            date_start = datetime.strptime(
+            start = datetime.strptime(
                 str(dict_calendar[key]['start']).split()[0],
                 '%Y-%m-%d').strftime('%d %B')
-            start = parent_word(date_start)
-            date_end = datetime.strptime(
+            #print(date_start + '\n')
+            #start = parent_word(date_start)
+            #print(start)
+            end = datetime.strptime(
                 str(dict_calendar[key]['end']).split()[0],
                 '%Y-%m-%d').strftime('%d %B')
-            end = parent_word(date_end)
+            #end = parent_word(date_end)
             the_end = ""
             if dict_calendar[key]['Закончен']:
                 the_end = 'Закончен'
@@ -380,9 +412,9 @@ def view_tour(message, dict_calendar, country_button):
                                             callback_data="back"))
             list_date = []
             for date in dict_calendar[text]['Матчи']:
-                true_date = parent_word(formatting.mitalic(
+                true_date = formatting.mitalic(
                     datetime.strptime(date.split("|")[0].split()[0],
-                                      '%d-%m-%Y').strftime('%d %B'),escape=True))
+                                      '%d-%m-%Y').strftime('%d %B'),escape=True)
                 if true_date not in list_date:
                     list_date.append(true_date)
                 list_date.append(formatting.mbold('{} | {} | {}'.format(
@@ -491,9 +523,23 @@ def get_ref_review(message, dict_review, text):
         table_text(message, back='Обзоры⚽')
 
 
-if __name__ == '__main__':
-    while True:
-        try:
-            bot.infinity_polling()
-        except Exception:
-            time.sleep(10)
+# if __name__ == '__main__':
+   # while True:
+   #     try:
+   #         bot.infinity_polling()
+   #     except Exception:
+   #         time.sleep(10)
+
+
+bot.remove_webhook()
+
+time.sleep(0.1)
+
+bot.set_webhook(url=WEBHOOK_URL_BASE + WEBHOOK_URL_PATH ,
+                certificate=open(WEBHOOK_SSL_CERT, 'r'))
+
+# Start flask server
+app.run(host=WEBHOOK_LISTEN,
+        port=WEBHOOK_PORT,
+        ssl_context=(WEBHOOK_SSL_CERT, WEBHOOK_SSL_PRIV),
+        debug=True)
