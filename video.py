@@ -2,8 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from config import User_agent, dict_rutube, dict_youtube, dict_footbal_video, mass_review, TOKEN,client_champ
-from xpath_ref import review_xpath_href, review_xpath_title
-from xpath_ref import review_xpath_date, review_xpath_match_href, review_xpath_France_href
+from xpath import review_xpath_href, review_xpath_title
+from xpath import review_xpath_date, review_xpath_match_href, review_xpath_France_href
 from lxml import etree, html
 import time
 import telebot
@@ -65,7 +65,6 @@ def rutube_video(query="обзор"):
         if query.upper() in title[i].upper():
             video_dict[title[i]] = video[i]
     return video_dict
-
 
 
 def football_video(link):

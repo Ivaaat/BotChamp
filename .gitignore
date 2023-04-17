@@ -1,4 +1,5 @@
 bot_linux 
+.vscode
 __pycache__ 
 *.ttf
 *.png

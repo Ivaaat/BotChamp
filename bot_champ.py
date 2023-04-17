@@ -6,15 +6,22 @@ import logging
 from datetime import datetime
 from config import mass_contry
 from config import list_name_site, db
-from championat import add_db, get_tab, get_logo, get_cal, parent_word
+from championat import parent_word
 from world_champ import WorldCup, world_playoff
 from config import TOKEN, user_id, channel_link
 from config import channel_id
-from user_mongo import add_user, view_users, get_push
-from user_mongo import set_push, get_user, get_list_user
-import news_football 
-import youtube_parse 
+import news 
+import video 
+import flask
 from live import tomorrow
+import postgr
+import mongo
+from mongo import add_user, view_users, get_push
+from mongo import set_push, get_user, get_list_user
+import locale
+
+locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
+
 
 
 
@@ -89,18 +96,18 @@ def button_country_news(message):
     else:
         ne = ""
     msg = bot.send_message(message.chat.id,
-                           f'{message.chat.first_name}! aka \
-{message.chat.username}\n\n\
-                     ⚽ Тебя приветствует @{bot.user.username} ⚽\n\n\
-        Здесь можно узнать самое главное о топ чемпионатаx!\n\n\
-                Хочешь узнать результаты команд?\n\
-                ✅Жми - Чемпионаты🏆\n\n\
-                Хочешь узнать последние новости футбольного мира?\n\
-                ✅Жми -  Новости📰\n\n\
-                Хочешь посмотреть видеообзоры футбольных матчей?\n\
-                ✅Жми -  Обзоры⚽\n\n\n\
-                ✅Жми /push и тебе {ne} будут приходить уведомления о новостях!\
-\n\n\n✅Выбирай!',
+                           f"""{message.chat.first_name}! aka 
+{message.chat.username}\n\n
+                     ⚽ Тебя приветствует @{bot.user.username} ⚽\n\n
+        Здесь можно узнать самое главное о топ чемпионатаx!\n\n
+                Хочешь узнать результаты команд?\n
+                ✅Жми - Чемпионаты🏆\n\n
+                Хочешь узнать последние новости футбольного мира?\n
+                ✅Жми -  Новости📰\n\n
+                Хочешь посмотреть видеообзоры футбольных матчей?\n
+                ✅Жми -  Обзоры⚽\n\n\n
+                ✅Жми /push и тебе {ne} будут приходить уведомления о новостях!
+\n\n\n✅Выбирай!""",
                            reply_markup=markup)
 
     bot.delete_my_commands()
@@ -159,7 +166,10 @@ def table_text(message, back=""):
         bot.register_next_step_handler(msg, get_dict_review)
     elif message.text == "update" and user_id == message.chat.id:
         for name in mass_contry.values():
-            add_db(name, '2022/2023')
+            mongo.add_calendar(name, '2022/2023')
+            mongo.add_table(name, '2022/2023')
+            #postgr.add_table(name)
+            #postgr.add_calendar(name)
             bot.send_message(message.chat.id, f'Обновил {name}')
             time.sleep(5)
         bot.send_message(message.chat.id, 'Обновил таблицы')
@@ -167,7 +177,6 @@ def table_text(message, back=""):
         button_country_news(message)
     elif 'Ближайшие матчи' in [message.text, back]:
         back_button(markup)
-        #markup.add(types.KeyboardButton('Live'))
         buttons = ['Live','Вчера', 'Сегодня', 'Завтра']
         markup.add(buttons[0])
         markup.add(*[x for x in buttons[1:]])
@@ -181,12 +190,10 @@ def table_text(message, back=""):
         for id in user_list:
             bot.send_message(id, "Вышло обновление. Жми /start")
     else:
-        bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
         button_country_news(message)
 
 
 def button_days(message, buttons):
-    #bot.delete_message(message.chat.id,message_id= message.message_id)
     if message.text in buttons:
         markup = types.ReplyKeyboardMarkup()
         back_button(markup)
@@ -260,7 +267,8 @@ def create_table(message, country_button):
                          f'{country_button}. Плей-офф! \n\n{world_playoff()}')
         return calendar_and_table(message, back=country_button)
     else:
-        mass = get_tab(mass_contry[country_button])
+        mass = mongo.get_tab(mass_contry[country_button],'2022/2023')
+        mass1 = postgr.get_table(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
@@ -301,14 +309,15 @@ def result_team(message, dict_team, country_button):
                     datetime.strptime(date.split("|")[0].split()[0],
                                       '%d-%m-%Y').strftime('%d %B'))
                 list_date.append(
-                    formatting.mbold('{} {} | {} | {}\
+                    formatting.mbold('{}  | {} | {}\
                                      '.format(true_date,
-                                              date.split("|")[0],
                                               date.split('|')[1],
-                                              date.split('|')[2]),escape=True))
+                                              date.split('|')[2]),
+                                              escape=True))
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
-                                 get_logo(mass_contry[country_button], text),
+                                 #mongo.get_logo(mass_contry[country_button], text),
+                                 postgr.get_logo(mass_contry[country_button], text),
                                  caption='\n\n'.join(list_date),
                                  reply_markup=markup,
                                  parse_mode="MarkdownV2"
@@ -338,30 +347,28 @@ def create_calendar(message, country_button):
         bot.send_message(message.chat.id, worldcup.worldcup_calendar())
         return calendar_and_table(message, back=country_button)
     elif country_button in mass_contry:
-        dict_calendar = get_cal(mass_contry[country_button], '2022/2023')
+        dict_calendar = mongo.get_cal(mass_contry[country_button], '2022/2023')
+        dict_calendar1 = postgr.get_calendar(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
         for key in dict_calendar:
-            date_start = datetime.strptime(
-                str(dict_calendar[key]['start']).split()[0],
-                '%Y-%m-%d').strftime('%d %B')
-            start = parent_word(date_start)
-            date_end = datetime.strptime(
-                str(dict_calendar[key]['end']).split()[0],
-                '%Y-%m-%d').strftime('%d %B')
-            end = parent_word(date_end)
-            the_end = ""
-            if dict_calendar[key]['Закончен']:
-                the_end = 'Закончен'
+            # date_start = datetime.strptime(
+            #     str(dict_calendar[key]['start']).split()[0],
+            #     '%Y-%m-%d').strftime('%d %B')
+            # start = parent_word(date_start)
+            start = parent_word(datetime.strptime(dict_calendar[key]['start'].split()[0], '%d-%m-%Y').strftime('%d %B'))
+            # date_end = datetime.strptime(
+            #     str(dict_calendar[key]['end']).split()[0],
+            #     '%Y-%m-%d').strftime('%d %B')
+            # end = parent_word(date_end)
+            end = parent_word(datetime.strptime(dict_calendar[key]['end'].split()[0], '%d-%m-%Y').strftime('%d %B'))
             button = types.KeyboardButton(('{} | {} - {} | {}').format(
-                key, start, end, the_end))
+                key, start, end, 'Закончен' if dict_calendar[key]['Закончен'] else ""))
             markup.add(button)
         msg = bot.send_message(message.chat.id,
                                f'{country_button} Выбери тур, \
-чтобы узнать результаты:',
-                               reply_markup=markup
-                               )
+чтобы узнать результаты:', reply_markup=markup)
         bot.register_next_step_handler(msg, view_tour, dict_calendar,
                                        country_button)
     else:
@@ -380,15 +387,19 @@ def view_tour(message, dict_calendar, country_button):
                                             callback_data="back"))
             list_date = []
             for date in dict_calendar[text]['Матчи']:
-                true_date = parent_word(formatting.mitalic(
+                true_date = formatting.mitalic(parent_word(
                     datetime.strptime(date.split("|")[0].split()[0],
-                                      '%d-%m-%Y').strftime('%d %B'),escape=True))
+                                      '%d-%m-%Y').strftime('%d %B')),escape=True)
                 if true_date not in list_date:
                     list_date.append(true_date)
+                try:
+                    time_match =  date.split("|")[0].split()[1]
+                except IndexError:
+                     time_match =  ""
                 list_date.append(formatting.mbold('{} | {} | {}'.format(
-                    date.split("|")[0].split()[1],
-                    date.split('|')[1],
-                    date.split('|')[2]),escape=True))
+                                                time_match,
+                                                date.split('|')[1],
+                                                date.split('|')[2]),escape=True))
             text = formatting.mbold(message.text, escape=True)
             msg = bot.send_message(message.chat.id,
                                    f"{text}\n\n" +
