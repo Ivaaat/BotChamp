@@ -76,13 +76,10 @@ def add_table(name, name_champ):
                                     })
 
 
-def get_logo(db_name, name):
+def get_logo(db_name, season, team):
     country = db[db_name]
-    logo = country.find_one({"Чемпионат": '2022/2023'})
-    try:
-        return logo["Лого"][name]
-    except KeyError:
-        return logo["Лого"]['Шальке-04']
+    logo = country.find_one({'team':team,"season": season})
+    return logo["logo"]
 
 
 def get_cal(name, name_champ):

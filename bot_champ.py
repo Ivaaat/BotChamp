@@ -268,7 +268,7 @@ def create_table(message, country_button):
         return calendar_and_table(message, back=country_button)
     else:
         mass = mongo.get_tab(mass_contry[country_button],'2022/2023')
-        mass1 = postgr.get_table(mass_contry[country_button])
+        #mass1 = postgr.get_table(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
@@ -316,8 +316,8 @@ def result_team(message, dict_team, country_button):
                                               escape=True))
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
-                                 #mongo.get_logo(mass_contry[country_button], text),
-                                 postgr.get_logo(mass_contry[country_button], text),
+                                 mongo.get_logo(mass_contry[country_button],'2022/2023', text),
+                                 #postgr.get_logo(mass_contry[country_button], text),
                                  caption='\n\n'.join(list_date),
                                  reply_markup=markup,
                                  parse_mode="MarkdownV2"
@@ -348,7 +348,7 @@ def create_calendar(message, country_button):
         return calendar_and_table(message, back=country_button)
     elif country_button in mass_contry:
         dict_calendar = mongo.get_cal(mass_contry[country_button], '2022/2023')
-        dict_calendar1 = postgr.get_calendar(mass_contry[country_button])
+        #dict_calendar1 = postgr.get_calendar(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
         back_button(markup)
