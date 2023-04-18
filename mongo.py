@@ -3,18 +3,16 @@ from config import User_agent, update_champ
 import time
 from championat import Calendar, Table, parent_word
 import threading
-from config import parse_site, client_champ, update_champ
+from config import parse_site, update_champ, db, dbs
 import requests
 import pymongo
 
 
-db = client_champ['json_champ']
-dbs = client_champ['users-table']
-
-
 def add_calendar(name, name_champ):
     country_calendar = db[f"{name}_calendar"]
-    country_calendar.create_index([("match", pymongo.ASCENDING)], unique=True)
+    indexes = [name_index['name'] for name_index in country_calendar.list_indexes()] 
+    if 'match_1' not in indexes:
+        country_calendar.create_index([("match", pymongo.ASCENDING)], unique=True)
     calendar = Calendar(name)
     tours = calendar.get_tour()
     dates = calendar.get_date()
@@ -40,7 +38,9 @@ def add_calendar(name, name_champ):
 
 def add_table(name, name_champ):
     country_table = db[f"{name}"]
-    country_table.create_index([("team", pymongo.ASCENDING)], unique=True)
+    indexes = [name_index['name'] for name_index in country_table.list_indexes()] 
+    if 'team_1' not in indexes:
+        country_table.create_index([("team", pymongo.ASCENDING)], unique=True)
     table = Table(name)
     logo_60x60 =  table.get_logo()
     names = table.get_name()
@@ -98,7 +98,7 @@ def get_cal(name, name_champ):
                                         match['result'])))
         match_calendar[f'Тур {str(i)}'] = {'Матчи': matches,
                                         'start':date[0] ,
-                                        'end':date[len(date)-1],
+                                        'end':date[-1],
                                         'Закончен': not False in end_match}
     return match_calendar
 
@@ -117,7 +117,6 @@ def sort_date(date):
 def get_tab(name, name_champ):
     country = db[name]
     table = country.find({"season": name_champ})
-    #try:
     calendar = {}
     country_calendar = db[f"{name}_calendar"]
     for team in table:

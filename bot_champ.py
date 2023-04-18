@@ -6,7 +6,6 @@ import logging
 from datetime import datetime
 from config import mass_contry
 from config import list_name_site, db
-from championat import parent_word
 from world_champ import WorldCup, world_playoff
 from config import TOKEN, user_id, channel_link
 from config import channel_id
@@ -21,9 +20,6 @@ from mongo import set_push, get_user, get_list_user
 import locale
 
 locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
-
-
-
 
 # logger = telebot.logger
 # telebot.logger.setLevel(logging.DEBUG)
@@ -353,17 +349,7 @@ def create_calendar(message, country_button):
         menu_button(markup)
         back_button(markup)
         for key in dict_calendar:
-            # date_start = datetime.strptime(
-            #     str(dict_calendar[key]['start']).split()[0],
-            #     '%Y-%m-%d').strftime('%d %B')
-            # start = parent_word(date_start)
-            #start = parent_word(datetime.strptime(dict_calendar[key]['start'].split()[0], '%d-%m-%Y').strftime('%d %B'))
             start = datetime.strptime(dict_calendar[key]['start'].split()[0], '%d-%m-%Y').strftime('%d %B')
-            # date_end = datetime.strptime(
-            #     str(dict_calendar[key]['end']).split()[0],
-            #     '%Y-%m-%d').strftime('%d %B')
-            # end = parent_word(date_end)
-            #end = parent_word(datetime.strptime(dict_calendar[key]['end'].split()[0], '%d-%m-%Y').strftime('%d %B'))
             end = datetime.strptime(dict_calendar[key]['end'].split()[0], '%d-%m-%Y').strftime('%d %B')
             button = types.KeyboardButton(('{} | {} - {} | {}').format(
                 key, start, end, 'Закончен' if dict_calendar[key]['Закончен'] else ""))
@@ -389,9 +375,9 @@ def view_tour(message, dict_calendar, country_button):
                                             callback_data="back"))
             list_date = []
             for date in dict_calendar[text]['Матчи']:
-                true_date = formatting.mitalic(parent_word(
+                true_date = formatting.mitalic(
                     datetime.strptime(date.split("|")[0].split()[0],
-                                      '%d-%m-%Y').strftime('%d %B')),escape=True)
+                                      '%d-%m-%Y').strftime('%d %B'),escape=True)
                 if true_date not in list_date:
                     list_date.append(true_date)
                 try:

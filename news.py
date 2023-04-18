@@ -2,7 +2,7 @@ import requests
 from lxml import html
 import xmltodict
 # import textwrap
-from config import parse_site, User_agent, client_champ,rss_link, user_id, TOKEN
+from config import parse_site, User_agent, client_champ,rss_link, user_id, TOKEN, db, dbs
 from datetime import datetime
 import time
 from pymongo import MongoClient, errors
@@ -11,15 +11,21 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pict import news_pic
 import telebot
 import locale
+import pymongo
 
 bot = telebot.TeleBot(TOKEN)
 sess = requests.Session()
 sess.headers.update(User_agent)
+client = MongoClient()
 
+
+news_coll = db['news']
+indexes = [name_index['name'] for name_index in news_coll.list_indexes()] 
+if 'link_1' not in indexes:
+    news_coll.create_index([("link", pymongo.ASCENDING)], unique=True)
 
 def news():
-    db = client_champ['users-table']
-    users_col = db['users']
+    users_col = dbs['users']
     timer = 120
     while True:
         try:
@@ -45,8 +51,6 @@ def news():
 threading.Thread(target=news).start()
 
 def news_parse():
-    sess = requests.Session()
-    sess.headers.update(User_agent)
     response = sess.get(f'{parse_site}/news/football/1.html')
     tree = html.fromstring(response.text)
     news_text = tree.xpath(
@@ -65,8 +69,6 @@ def news_parse():
 
 def get_one_news(link):
     string_news = ""
-    sess = requests.Session()
-    sess.headers.update(User_agent)
     response = sess.get(link)
     tree1 = html.fromstring(response.text)
     text_site = tree1.xpath('//*[@data-type = "news"]/p//text()')
@@ -83,9 +85,6 @@ def get_one_news(link):
 
 
 def rss_news(response):
-    client = MongoClient()
-    dbc = client['json_champ']
-    news_coll = dbc['news']
     asd = xmltodict.parse(response.text)
     list_news = []
     for news_list in asd['rss']['channel']['item']:
@@ -129,8 +128,6 @@ ligu-chempionov_1583405978161575552.jpg"
 
 
 def req_yandex(text):
-    sess = requests.Session()
-    sess.headers.update(User_agent)
     zxc = [czs for czs in text.split() if not czs.islower()]
     if len(zxc) < 3:
         text = '{} футбол'.format(' '.join(zxc))

@@ -15,5 +15,6 @@ MyDataBase.py
 add_db.py
 sheduler.py
 pict.py
+world_champ.py
 webhook_cert.pem
 webhook_pkey.pem

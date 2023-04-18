@@ -70,7 +70,7 @@ def get_calendar(name):
         end_match = [ends[4] for ends in calend]
         match_from_calendar[calend[0][0]] = {'Матчи': matches,
                                             'start':calend[0][2],
-                                            'end':calend[len(calend) -1][2],
+                                            'end':calend[-1][2],
                                             'Закончен': not False in end_match 
                                                                 }
     cursor1.close()

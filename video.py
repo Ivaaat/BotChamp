@@ -10,8 +10,14 @@ import telebot
 import threading
 bot = telebot.TeleBot(TOKEN) 
 from datetime import datetime
+import pymongo
+
 db = client_champ['json_champ']
 video_coll = db['video']
+
+indexes = [name_index['name'] for name_index in video_coll.list_indexes()] 
+if 'desc_1' not in indexes:
+    video_coll.create_index([("desc", pymongo.ASCENDING)], unique=True)
 
 
 def bs4_youtube(query):
@@ -92,7 +98,6 @@ def football_video(link):
             try:
                 review_ref = list_href[0].split('=')[1]
             except IndexError:
-                # review_ref = list_href[0]
                 continue
         title = '{} {}'.format(review_title.strip(), 
                                review_list_date[i].strip())
