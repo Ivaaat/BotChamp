@@ -254,7 +254,7 @@ def update_base():
         except:
             time.sleep(120)
 
-#threading.Thread(target=update_base).start()
+threading.Thread(target=update_base).start()
 
 
 #db.auth('user_id', '12345')

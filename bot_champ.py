@@ -305,9 +305,9 @@ def result_team(message, dict_team, country_button):
         if text in dict_team:
             list_date = []
             for date in dict_team[text][3]:
-                true_date = parent_word(
-                    datetime.strptime(date.split("|")[0].split()[0],
-                                      '%d-%m-%Y').strftime('%d %B'))
+                #true_date = parent_word(
+                true_date = datetime.strptime(date.split("|")[0].split()[0],
+                                      '%d-%m-%Y').strftime('%d %B')
                 list_date.append(
                     formatting.mbold('{}  | {} | {}\
                                      '.format(true_date,
@@ -357,12 +357,14 @@ def create_calendar(message, country_button):
             #     str(dict_calendar[key]['start']).split()[0],
             #     '%Y-%m-%d').strftime('%d %B')
             # start = parent_word(date_start)
-            start = parent_word(datetime.strptime(dict_calendar[key]['start'].split()[0], '%d-%m-%Y').strftime('%d %B'))
+            #start = parent_word(datetime.strptime(dict_calendar[key]['start'].split()[0], '%d-%m-%Y').strftime('%d %B'))
+            start = datetime.strptime(dict_calendar[key]['start'].split()[0], '%d-%m-%Y').strftime('%d %B')
             # date_end = datetime.strptime(
             #     str(dict_calendar[key]['end']).split()[0],
             #     '%Y-%m-%d').strftime('%d %B')
             # end = parent_word(date_end)
-            end = parent_word(datetime.strptime(dict_calendar[key]['end'].split()[0], '%d-%m-%Y').strftime('%d %B'))
+            #end = parent_word(datetime.strptime(dict_calendar[key]['end'].split()[0], '%d-%m-%Y').strftime('%d %B'))
+            end = datetime.strptime(dict_calendar[key]['end'].split()[0], '%d-%m-%Y').strftime('%d %B')
             button = types.KeyboardButton(('{} | {} - {} | {}').format(
                 key, start, end, 'Закончен' if dict_calendar[key]['Закончен'] else ""))
             markup.add(button)

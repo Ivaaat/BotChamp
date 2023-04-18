@@ -23,21 +23,20 @@ def news():
     timer = 120
     while True:
         try:
-            if users_col.count_documents({'Push':True}) > 0:
-                response = sess.get(rss_link)
-                list_news = rss_news(response)
-                if list_news is None:
-                    time.sleep(timer)
-                    continue
-                else:
-                    for news in list_news:
-                        pic = news_pic(news['logo'], news['title'])
-                        inst_view = f'https://t.me/iv?url=https%3A%2F%2F\
-{news["link"]}&rhash=f610f320a497f8'
-                        markup = InlineKeyboardMarkup()
-                        markup.add(InlineKeyboardButton(news['title'], url=inst_view))
-                        for id in users_col.find({'Push':True}):
-                            bot.send_photo(id['_id'], pic, reply_markup=markup)
+            response = sess.get(rss_link)
+            list_news = rss_news(response)
+            if list_news is None:
+                time.sleep(timer)
+                continue
+            else:
+                for news in list_news:
+                    pic = news_pic(news['logo'], news['title'])
+                    inst_view = f'''https://t.me/iv?url=https%3A%2F%2F
+{news["link"]}&rhash=f610f320a497f8'''
+                    markup = InlineKeyboardMarkup()
+                    markup.add(InlineKeyboardButton(news['title'], url=inst_view))
+                    for id in users_col.find({'Push':True}):
+                        bot.send_photo(id['_id'], pic, reply_markup=markup)
             time.sleep(timer)
         except Exception:
             bot.send_message(user_id, str('def news\n'))
@@ -108,6 +107,7 @@ ligu-chempionov_1583405978161575552.jpg"
                 try:
                     if news['@domain'] == 'content_importance':
                         content_importance = True
+                        break
                 except TypeError:
                     continue
         dict_news = {
