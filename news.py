@@ -37,7 +37,7 @@ def news():
             else:
                 for news in list_news:
                     pic = news_pic(news['logo'], news['title'])
-                    inst_view = f'''https://t.me/iv?url=https%3A%2F%2F
+                    inst_view = f'''https://t.me/iv?url=https%3A%2F%2F\
 {news["link"]}&rhash=f610f320a497f8'''
                     markup = InlineKeyboardMarkup()
                     markup.add(InlineKeyboardButton(news['title'], url=inst_view))
@@ -116,6 +116,8 @@ ligu-chempionov_1583405978161575552.jpg"
             'logo':logo,
             'text': text,
             'content_importance':content_importance}
+        list_news.append(dict_news)
+        return list_news
         try:
             news_coll.insert_one(dict_news)
             if dict_news['content_importance']:

@@ -7,8 +7,8 @@ from datetime import datetime
 from config import mass_contry
 from config import list_name_site, db
 from world_champ import WorldCup, world_playoff
-from config import TOKEN, user_id, channel_link
-from config import channel_id
+from config import user_id, channel_link
+from config import channel_id, bot
 import news 
 import video 
 import flask
@@ -23,7 +23,6 @@ locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
 
 # logger = telebot.logger
 # telebot.logger.setLevel(logging.DEBUG)
-bot = telebot.TeleBot(TOKEN)  # Токен
 bot.set_my_commands(
     commands=[
         telebot.types.BotCommand("start", "start_parse"),
