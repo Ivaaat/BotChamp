@@ -260,7 +260,7 @@ def upcoming_matches():
         add_calendar(f"calendar_{season}")
     if table.count_documents({}) == 0:
         for country in update_champ.values():
-            add_table(country, season)
+            add_table(country)
     while True:
         try:
             sess = requests.Session()
