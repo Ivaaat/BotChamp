@@ -1,8 +1,7 @@
 import requests
 from lxml import html
 import xmltodict
-# import textwrap
-from config import parse_site, User_agent, client_champ,rss_link, user_id, TOKEN, db, dbs
+from config import parse_site, User_agent, rss_link, user_id, TOKEN, db, dbs
 from datetime import datetime
 import time
 from pymongo import MongoClient, errors
@@ -10,7 +9,6 @@ import threading
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pict import news_pic
 import telebot
-import locale
 import pymongo
 
 bot = telebot.TeleBot(TOKEN)
@@ -48,7 +46,9 @@ def news():
             bot.send_message(user_id, str('def news\n'))
             time.sleep(timer)
 
+
 threading.Thread(target=news).start()
+
 
 def news_parse():
     response = sess.get(f'{parse_site}/news/football/1.html')
@@ -90,9 +90,8 @@ def rss_news(response):
     for news_list in asd['rss']['channel']['item']:
         link = news_list['link']
         title = news_list["title"].replace('&#039;','\'')
-        locale.setlocale(locale.LC_TIME, ('en_US', 'UTF-8'))
-        date = datetime.strptime(news_list['pubDate'].replace('+0300',"").strip(),'%a, %d %b %Y %H:%M:%S')
-        locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
+        time = news_list['pubDate'].split()[4].split(':')
+        date = ' '.join([datetime.now().strftime("%Y-%m-%d"),'{}:{}'.format(time[0],time[1])])
         try:
             logo = news_list['enclosure']['@url']
         except KeyError:
@@ -117,7 +116,6 @@ ligu-chempionov_1583405978161575552.jpg"
             'text': text,
             'content_importance':content_importance}
         list_news.append(dict_news)
-        return list_news
         try:
             news_coll.insert_one(dict_news)
             if dict_news['content_importance']:

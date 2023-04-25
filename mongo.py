@@ -4,41 +4,48 @@ import time
 from championat import Calendar, Table, parent_word
 import threading
 from config import parse_site, update_champ, db, dbs, bot
-from config import user_id
+from config import user_id, dict_match, season
 import requests
 import pymongo
 
 
-def add_calendar(name, name_champ):
-    country_calendar = db[f"{name}_calendar"]
-    indexes = [name_index['name'] for name_index in country_calendar.list_indexes()] 
-    if 'match_1' not in indexes:
-        country_calendar.create_index([("match", pymongo.ASCENDING)], unique=True)
-    calendar = Calendar(name)
-    tours = calendar.get_tour()
-    dates = calendar.get_date()
-    matches = calendar.get_matches()
-    results = calendar.get_result()
-    for i in range(len(matches)):
-        try:
-            country_calendar.insert_one({'match':matches[i],
-                            'date':dates[i],
-                            'result':results[i],
-                            'tour':tours[i],
-                            'ends': results[i] != "",
-                            'season' :name_champ
-                            })
-        except pymongo.errors.DuplicateKeyError:
-            country_calendar.update_one({'match':matches[i]},
-                            {'$set':{'date':dates[i],
-                                     'result':results[i],
-                                     'tour':tours[i],
-                                     'ends': results[i] != ""}}
-                            )
+def add_calendar(name_champ):
+    for id, country in update_champ.items():
+        country_calendar = db[name_champ]
+        indexes = [name_index['name'] for name_index in country_calendar.list_indexes()] 
+        if 'match_1' not in indexes:
+            country_calendar.create_index([("match", pymongo.ASCENDING)], unique=True)
+        calendar = Calendar(country)
+        tours = calendar.get_tour()
+        dates = calendar.get_date()
+        matches = calendar.get_matches()
+        results = calendar.get_result()
+        for i in range(len(matches)):
+            try:
+                country_calendar.insert_one({'match':matches[i],
+                                'date':dates[i],
+                                'result':results[i],
+                                'tour':tours[i],
+                                'ends': results[i] != "",
+                                'country': country,
+                                'champ': dict_match[id],
+                                'live':False
+                                })
+            except pymongo.errors.DuplicateKeyError:
+                country_calendar.update_one({'match':matches[i]},
+                                {'$set':{
+                                        'date':dates[i],
+                                        'result':results[i],
+                                        'tour':tours[i],
+                                        'ends': results[i] != "",
+                                        'country': country,
+                                        'champ': dict_match[id],
+                                        'live':False}}
+                                )
             
 
-def add_table(name, name_champ):
-    country_table = db[f"{name}"]
+def add_table(name):
+    country_table = db[f"table_{season}"]
     indexes = [name_index['name'] for name_index in country_table.list_indexes()] 
     if 'team_1' not in indexes:
         country_table.create_index([("team", pymongo.ASCENDING)], unique=True)
@@ -63,7 +70,7 @@ def add_table(name, name_champ):
                                     "draw": draw_stat[i],
                                     "balls": balls_stat[i],
                                     "logo": logo[i],
-                                    "season": name_champ})
+                                    "country": name})
         except pymongo.errors.DuplicateKeyError:
             country_table.update_one({"team": names[i]},
                                         {'$set':{"points": points_stat[i],
@@ -73,27 +80,24 @@ def add_table(name, name_champ):
                                                 "draw": draw_stat[i],
                                                 "balls": balls_stat[i],
                                                 "logo": logo[i],
-                                                "season": name_champ}
+                                                "country": name}
                                     })
 
-def update_base(name,season):
-    add_table(name,season)
-    add_calendar(name,season)
 
-def get_logo(db_name, season, team):
-    country = db[db_name]
-    logo = country.find_one({'team':team,"season": season})
+def get_logo(team):
+    country = db[f'table_{season}']
+    logo = country.find_one({'team':team})
     return logo["logo"]
 
 
-def get_cal(name, name_champ):
-    country_calendar = db[f"{name}_calendar"]
+def get_cal(name):
+    country_calendar = db[f'calendar_{season}']
     match_calendar = {}
-    for i in range(1,len(country_calendar.distinct('tour')) + 1):
+    for i in range(1,len(country_calendar.find({"country": name}).distinct('tour')) + 1):
         end_match = []
         date = []
         matches = []
-        calendar = country_calendar.find({"season": name_champ, 'tour':str(i)} )
+        calendar = country_calendar.find({"country": name, 'tour':str(i)} )
         for match in calendar:
             end_match.append(match['ends'])
             date.append(match['date'])
@@ -118,12 +122,11 @@ def sort_date(date):
     return date.split('|')[0].replace('.', '-').strip()
 
 
-def get_tab(name, name_champ):
-    country = db[name]
-    table = country.find({"season": name_champ})
+def get_tab(name):
+    country = db[f'table_{season}']
     calendar = {}
-    country_calendar = db[f"{name}_calendar"]
-    for team in table:
+    country_calendar = db[f"calendar_{season}"]
+    for team in country.find({"country": name}):
         six_match = country_calendar.find({'match':{"$regex":team['team']}, 'ends': True}).sort("$natural",1)
         calendar[team['team']] = team['games'], \
                                 team['points'], \
@@ -132,7 +135,7 @@ def get_tab(name, name_champ):
                                              match['match'], 
                                              match['result']]) for match in six_match][-6:]
     return calendar
-   
+
 
 def get_start_end_tour(name, next_date):
     country = db[name]
@@ -235,26 +238,35 @@ def update_base():
             time.sleep(120)
 
 #threading.Thread(target=update_base).start()
-
+def update():
+    calendar = db[f"calendar_{season}"]
+    i = 0
+    today_date = (datetime.now() - timedelta(1)).strftime("%d-%m-%Y")
+    date_last = datetime(2022,12,31).strftime("%d-%m-%Y")
+    while date_last != today_date:
+        date_last = (datetime(2022,12,31) + timedelta(i)).strftime("%d-%m-%Y")
+        for _ in calendar.find({'ends':False , 'date':{'$regex':date_last}}):
+            add_calendar(f"calendar_{season}")
+            for country in update_champ.values():
+                add_table(country)
+            date_last = today_date
+        i+=1
 
 def upcoming_matches():
     i = 0
-    country_calendar = db["stat"]
-    #start_date = datetime(2022, 7, 15)
-    start_date = datetime(2023, 4, 21)
+    calendar = db[f"calendar_{season}"]
+    table = db[f"table_{season}"]
+    if calendar.count_documents({}) == 0:
+        add_calendar(f"calendar_{season}")
+    if table.count_documents({}) == 0:
+        for country in update_champ.values():
+            add_table(country, season)
     while True:
-        delta = timedelta(days=1)
-        start_date += delta
-        indexes = [name_index['name'] for name_index in country_calendar.list_indexes()] 
-        if 'match_1' not in indexes:
-            country_calendar.create_index([("match", pymongo.ASCENDING)], unique=True)
         try:
             sess = requests.Session()
             sess.headers.update(User_agent) 
-            #today_date = (datetime.now() + timedelta(i)).strftime("%Y-%m-%d")
-            today_date = (start_date).strftime("%Y-%m-%d")
+            today_date = (datetime.now() + timedelta(i)).strftime("%Y-%m-%d")
             parse_link = f"{parse_site}/stat/{today_date}.json"
-            #parse_link = f"{parse_site}/stat/2023-04-15.json"
             response = sess.get(parse_link).json()
             live = []
             end = []
@@ -277,84 +289,81 @@ def upcoming_matches():
                                                     live_match['teams'][1]['name']) 
                     results ='{} : {}'.format(live_match['result']['detailed']['goal1'], 
                                                 live_match['result']['detailed']['goal2']) 
-                    country_calendar.update_one({'match':match},
-                                                            {
-                                                            '$set':{
-                                                            'result':results,
-                                                            'live':True
-                                                            }
-                                                            })
-                time.sleep(60)
-                upcoming_matches()
-            elif ends := len(end) > 0:
+                    calendar.update_one({'match':match},
+                                                    {
+                                                    '$set':{
+                                                    'result':results,+
+                                                    'live':True,
+                                                    'time' : live_match['status']['name']
+                                                    }
+                                                    })
+                time.sleep(30)
+                if len(end) == 0:
+                    upcoming_matches()
+            if ends := len(end) > 0:
                 for match_end in end:
                     match ='{} - {}'.format(match_end['teams'][0]['name'], 
                                                     match_end['teams'][1]['name']) 
-                    results ='{} : {}'.format(match_end['result']['detailed']['goal1'], 
-                                            match_end['result']['detailed']['goal2']) 
-                    date = match_end['date'].split('-')
-                    dates = '-'.join([date[2],date[1],date[0]])
-                    result_update = country_calendar.update_one({'match':match},
-                                                {
-                                                '$set':{
-                                                'date':' '.join([dates, match_end['time']]),
-                                                'result':results,
-                                                'tour':match_end['roundForLTAndMC'].split('-')[0],
-                                                'ends': ends,
-                                                'country' : match_end['section'],
-                                                'champ': match_end['link_title'].split('.')[3].strip()
-                                                }
-                                                }
-                                            )  
-                    if result_update.matched_count == 0:
-                        country_calendar.insert_one({'match':match,
+                    if calendar.find_one({'match':match,'ends':True}) is None:
+                        results ='{} : {}'.format(match_end['result']['detailed']['goal1'], 
+                                                match_end['result']['detailed']['goal2']) 
+                        date = match_end['date'].split('-')
+                        dates = '-'.join([date[2],date[1],date[0]])
+                        calendar.update_one({'match':match},
+                                                    {
+                                                    '$set':{
                                                     'date':' '.join([dates, match_end['time']]),
                                                     'result':results,
                                                     'tour':match_end['roundForLTAndMC'].split('-')[0],
                                                     'ends': ends,
+                                                    'live':False,
                                                     'country' : match_end['section'],
                                                     'champ': match_end['link_title'].split('.')[3].strip()
                                                     }
+                                                    }
                                                 )  
-            elif ends := len(future) > 0:
+                        add_table(match_end['section'])
+                    if len(live) > 0:
+                        upcoming_matches()
+            if ends := len(future) > 0:
                 time_list = []
                 for future_match in future:
-                        match ='{} - {}'.format(future_match['teams'][0]['name'], 
-                                                    future_match['teams'][1]['name']) 
-                        if country_calendar.find_one({'match':match}) is not None:
-                            time_match = datetime.strptime(future_match['time_str'],'%d.%m.%Y %H:%M')
-                            if future_match['status']['name'] == 'Перенесён':
-                                continue
-                            if time_match not in time_list:
-                                time_list.append(time_match)
-                            time_list.sort()
-                            for date_update in time_list:
-                                seconds_sleep = (date_update - datetime.now()).total_seconds()
-                                time.sleep(seconds_sleep) 
-                                upcoming_matches()  
-                        else:
-                            date = future_match['date'].split('-')
-                            dates = '-'.join([date[2],date[1],date[0]])
-                            country_calendar.insert_one({'match':match,
-                                                            'date':' '.join([dates, future_match['time']]),
-                                                            'result':'',
-                                                            'tour':future_match['roundForLTAndMC'].split('-')[0],
-                                                            'ends': not ends,
-                                                            'country' : future_match['section'],
-                                                            'champ': future_match['link_title'].split('.')[3].strip()
-                                                            }
-                                                        )  
+                    match ='{} - {}'.format(future_match['teams'][0]['name'], 
+                                                future_match['teams'][1]['name']) 
+                    if calendar.find_one({'match':match}) is not None:
+                        time_match = datetime.strptime(future_match['time_str'],'%d.%m.%Y %H:%M')
+                        if future_match['status']['name'] == 'Перенесён':
+                            continue
+                        if time_match not in time_list:
+                            time_list.append(time_match)
+                        time_list.sort()
+                        for date_update in time_list:
+                            seconds_sleep = (date_update - datetime.now()).total_seconds()
+                            time.sleep(seconds_sleep) 
+                            upcoming_matches()  
+                    else:
+                        date = future_match['date'].split('-')
+                        dates = '-'.join([date[2],date[1],date[0]])
+                        calendar.insert_one({'match':match,
+                                                        'date':' '.join([dates, future_match['time']]),
+                                                        'result':'',
+                                                        'tour':future_match['roundForLTAndMC'].split('-')[0],
+                                                        'ends': not ends,
+                                                        'country' : future_match['section'],
+                                                        'champ': future_match['link_title'].split('.')[3].strip()
+                                                        }
+                                                    )  
             i+=1
         except Exception as e:
             bot.send_message(user_id, e)
             continue  
         
             
-threading.Thread(target=upcoming_matches).start()           
                 
 
-#db.auth('user_id', '12345')
+threading.Thread(target=upcoming_matches).start()           
 
+#db.auth('user_id', '12345')
 users_col = dbs['users']
 
 

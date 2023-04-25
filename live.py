@@ -1,13 +1,14 @@
-import requests
-from lxml import html
 from datetime import datetime, timedelta
-from config import User_agent, parse_site, dict_match
+from config import db
 
-def tomorrow(button):
-    sess = requests.Session()
-    sess.headers.update(User_agent)
+
+def upcoming_match(button):
+    list_matches = []
+    calendar = db['calendar_2022/2023']
     if button == 'Live':
-        today_date = button.lower()
+        mongo_calend = calendar.find({'live':True, 
+                                      'date':{
+            '$regex':datetime.now().strftime("%d-%m-%Y")}})
     else:
         if button == 'Сегодня':
             day = 0
@@ -15,51 +16,22 @@ def tomorrow(button):
             day = -1
         else:
             day = 1
-        today_date = (datetime.now() + timedelta(day)).strftime("%Y-%m-%d")
-    parse_link = f"{parse_site}/stat/{today_date}.json"
-    matches = []
-    response = sess.get(parse_link).json()
-    try:
-        dict_now = response['matches']['football']['tournaments']
-    except KeyError:
-        return None
-    for key, value in dict_now.items():
-        if key in dict_match:
-            if value['name'] not in matches:
-                matches.append(value['name'])
-            for match in value['matches']:
-                if button == 'Вчера':
-                    time_match = ""
-                elif button == 'Live':
-                    if match['status']['name'] not in ['Не начался', 'Окончен']:
-                        time_match =", " + match['status']['name']
-                    else:
-                        continue
-                else:
-                    time_match = ", " + match['time']
-                    if match['status']['name'] not in ['Не начался', 'Окончен']:
-                        time_match =", {} Live".format(match['status']['name']) 
-                try:
-                    res_1 = '| ' + str(match['result']['detailed']['goal1'])
-                    res_2 = str(match['result']['detailed']['goal2']) +  ' |' 
-                    sep = ":"
-                except KeyError:
-                    res_1 = ""
-                    res_2 = ""
-                    sep = "-"
-                result = '{} {} {} {} {}{}'.format(
-                    match['teams'][0]['name'],
-                    res_1,
-                    sep,
-                    res_2,
-                    match['teams'][1]['name'],
-                    time_match
-                        )
-                matches.append(result)
-            if matches[-1] == value['name']:
-                matches.remove(value['name'])
-    if len(matches) == 0:
-        return None
-    return matches
-
-#tomorrow('Live')
+        today_date = (datetime.now() + timedelta(day)).strftime("%d-%m-%Y")
+        mongo_calend = calendar.find({'date':{'$regex':today_date}})
+    for match in mongo_calend:
+        name_champ_tour = '{}. {}-й тур'.format(match['champ'], match['tour'])
+        if match['live']:
+            time_match =" | {}  Live | ".format(match['time']) 
+        elif day == -1:
+            time_match = ""
+        else:
+            time_match = " | {} | ".format(match['date'].split()[1]) 
+        
+        if name_champ_tour not in list_matches:
+            list_matches.append(name_champ_tour)
+        result = '| {} | {} {}'.format(
+                    match['match'],
+                    match['result'],
+                    time_match)
+        list_matches.append(result)
+    return list_matches

@@ -1,19 +1,20 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from config import User_agent, dict_rutube, dict_youtube, dict_footbal_video, mass_review, TOKEN,client_champ
+from config import User_agent, dict_rutube, dict_youtube, bot
+from config import dict_footbal_video, mass_review, client_champ
 from xpath import review_xpath_href, review_xpath_title
 from xpath import review_xpath_date, review_xpath_match_href, review_xpath_France_href
 from lxml import etree, html
 import time
-import telebot
 import threading
-bot = telebot.TeleBot(TOKEN) 
-from datetime import datetime
 import pymongo
+from pymongo import errors
+from datetime import datetime
 
 db = client_champ['json_champ']
 video_coll = db['video']
+
 
 indexes = [name_index['name'] for name_index in video_coll.list_indexes()] 
 if 'desc_1' not in indexes:
@@ -32,8 +33,22 @@ def bs4_youtube(query):
     data1 = re.findall(title + r"([^*]{150})", str(search))
     i = 0
     for clear_title in data1[:60]:
-        asd[clear_title[1:clear_title.find('}')-1]] = '\
-https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
+        desc = clear_title[1:clear_title.find('}')-1]
+        date = desc.split()[-1]
+        b = i
+        while '.' not in date:
+            desc = data1[b-1][1:data1[b-1].find('}')-1]
+            date = desc.split()[-1]
+            b-=1
+        try:
+            clear_date = datetime.strptime(date,"%d.%m.%Y")
+        except ValueError:
+            try:
+                clear_date = datetime.strptime(date,"%d.%m.%y")
+            except ValueError:
+                continue
+        asd[desc] = '\
+https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1], clear_date
         i += 1
     return asd
 
@@ -51,25 +66,47 @@ def youtube_video(query):
     i = 0
     for clear_title in data1:
         if search_query in clear_title:
-            asd[clear_title[1:clear_title.find('}')-1]] = '\
-https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1]
+            desc = clear_title[1:clear_title.find('}')-1]
+            date = desc.split()[-1]
+            b = i
+            while '.' not in date:
+                desc = data1[b-1][1:data1[b-1].find('}')-1]
+                date = desc.split()[-1]
+                b-=1
+            try:
+                clear_date = datetime.strptime(date,"%d.%m.%Y")
+            except ValueError:
+                clear_date = datetime.strptime(date,"%d.%m.%y")
+            asd[desc] = '\
+https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1], clear_date
         i += 1
         continue
     return asd
 
 
-def rutube_video(query="обзор"):
+def rutube_video(query="обзор", i=21):
     video_dict = {}
-    #for j in range(1,21):
-    #    time.sleep(1)
-    req = requests.get(f'https://rutube.ru/metainfo/tv/255003/')#page-{j}')
-    send = BeautifulSoup(req.text, 'html.parser')
-    video_title = etree.HTML(str(send))
-    title = video_title.xpath('//section/a/div/img/@alt')
-    video = video_title.xpath('//div/section/a/@href')
-    for i in range(len(video)):
-        if query.upper() in title[i].upper():
-            video_dict[title[i]] = video[i]
+    for j in range(1,i):
+        req = requests.get(f'https://rutube.ru/metainfo/tv/255003/page-{j}')
+        send = BeautifulSoup(req.text, 'html.parser')
+        video_title = etree.HTML(str(send))
+        title = video_title.xpath('//section/a/div/img/@alt')
+        video = video_title.xpath('//div/section/a/@href')
+        for num_list in range(len(video)):
+            if query.upper() in title[num_list].upper():
+                date = title[num_list].split()[-1]
+                b = num_list
+                while '.' not in date:
+                    date = title[b-1].split()[-1]
+                    b-=1
+                try:
+                    clear_date = datetime.strptime(date,"%d.%m.%Y")
+                except ValueError:
+                    try:
+                        clear_date = datetime.strptime(date,"%d.%m.%y")
+                    except ValueError:
+                        continue
+                video_dict[title[num_list]] = video[num_list], clear_date
     return video_dict
 
 
@@ -88,6 +125,8 @@ def football_video(link):
         response = sess.get(review_list_href[i])
         tree = html.fromstring(response.text)
         list_href = tree.xpath(review_xpath_match_href)
+        dates = review_list_href[i].split('/')
+        date = '.'.join([dates[5],dates[4],dates[3]])
         if len(list_href) == 0:
             list_href = tree.xpath(review_xpath_France_href)
             if len(list_href) == 0:
@@ -101,29 +140,35 @@ def football_video(link):
                 continue
         title = '{} {}'.format(review_title.strip(), 
                                review_list_date[i].strip())
-        dict_review[title] = review_ref
+        dict_review[title] = review_ref, datetime.strptime(date,"%d.%m.%Y")
     return dict_review
-        
+
 
 def send_and_bd(func, dict_query):
     db = client_champ['users-table']
     users_col = db['users']
+    if video_coll.count_documents({}) == 0:
+        add_video(func, dict_query)
+        print('добавляю все')
+    if func == bs4_youtube:
+        return
     while True:
         try:
             for key, query in dict_query.items():
                 video_dict = func(query)
-                for desc_video, link in video_dict.items():
+                for desc_video, link_date in video_dict.items():
                     try:
                         video_coll.insert_one({
                                         "desc": desc_video, 
-                                        "link": link, 
-                                        "country":key})
+                                        "link": link_date[0], 
+                                        "country":key,
+                                        'date':link_date[1]})
                         for id in users_col.find({'Push':True}):
                             int_id = int(id['_id'])
-                            msg = bot.send_message(int_id, "{}\n {}".format(desc_video, link))
+                            msg = bot.send_message(int_id, "{}\n {}".format(desc_video, link_date[0]))
                             if int_id < 0:
                                 bot.pin_chat_message(int_id, msg.message_id)
-                    except Exception:
+                    except errors.DuplicateKeyError:
                         break
                 time.sleep(120)
             time.sleep(1800)
@@ -131,12 +176,6 @@ def send_and_bd(func, dict_query):
             bot.send_message(377190896, f"пиздарики{key}\n {e}")
             time.sleep(1800)
                 
-# send_and_bd(rutube_video,dict_rutube)
-# send_and_bd(youtube_video,dict_youtube)
-# send_and_bd(football_video,dict_footbal_video)
-threading.Timer(1, send_and_bd, [rutube_video, dict_rutube]).start()
-threading.Timer(2, send_and_bd, [youtube_video, dict_youtube]).start()
-threading.Timer(3, send_and_bd, [football_video, dict_footbal_video]).start()
 
 def add_video(func, dict_query):
     for key, query in dict_query.items():
@@ -144,39 +183,44 @@ def add_video(func, dict_query):
         list_video = [{f:a} for f,a in video_dict.items()]
         list_video.reverse()
         for video_dicts in list_video:
-            for desc, link in video_dicts.items():
+            for desc, link_date in video_dicts.items():
                 try:
-                    #time.sleep(0.1)
-                    video_coll.insert_one({"desc": desc, "link": link, "country":key})
+                    video_coll.insert_one({"desc": desc, 
+                                           "link": link_date[0], 
+                                           "country":key, 
+                                           'date':link_date[1]})
                 except Exception:
                     continue
-        time.sleep(10)
-def delete_video():
-    video_coll.delete_many({})
 
-def delete_one(query):
-    for _ in video_coll.find({'country':query}):
-        video_coll.delete_one({'country':query})
-#delete_one('Квалификация Евро-2024🌍')
-#delete_video()
 
-# add_video(bs4_youtube, mass_review)
-# add_video(rutube_video,dict_rutube)
-# add_video(youtube_video, dict_youtube)
-# add_video(football_video, dict_footbal_video)
-
-def edit_one_video():
-    dkc = []
-    for video in video_coll.find():
+def update_rutube():
+    j = 2
+    if video_coll.count_documents({}) == 0:
+        j = 21
+        print('добавляю все')
+    while True:
         try:
-            date = datetime.strptime(video['desc'].split()[-1],'%d.%m.%Y')
-            print(date)
-        except ValueError:
-            try:
-                date = datetime.strptime(video['desc'].split()[-1],'%d.%m.%y')
-            except:
-                dkc.append(video['desc'])
-        #video_coll.update_one({},{'$set':{'date':date}})
-    breakpoint()
+            video_rutube = rutube_video(i = j)
+            for title, video_date in video_rutube.items():
+                try:
+                    for country, query in dict_rutube.items():
+                        if query.upper() in title.upper():
+                            video_coll.insert_one({
+                                                "desc": title, 
+                                                "link": video_date[0],
+                                                'date':  video_date[1], 
+                                                "country":country})
+                            break
+                except errors.DuplicateKeyError:
+                    break
+            time.sleep(1800)
+        except Exception as e:
+            bot.send_message(377190896, f"пиздарики\n {e}")
+            time.sleep(1800)
 
-#edit_one_video()
+
+threading.Timer(1, update_rutube).start()
+threading.Timer(1, send_and_bd, [youtube_video, dict_youtube]).start()
+threading.Timer(1, send_and_bd, [football_video, dict_footbal_video]).start()
+threading.Timer(1, send_and_bd, [bs4_youtube, mass_review]).start()
+

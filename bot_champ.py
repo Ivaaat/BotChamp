@@ -2,7 +2,6 @@ import telebot
 from telebot import types, formatting
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import time
-import logging
 from datetime import datetime
 from config import mass_contry
 from config import list_name_site, db
@@ -12,8 +11,8 @@ from config import channel_id, bot
 import news 
 import video 
 import flask
-from live import tomorrow
-import postgr
+from live import upcoming_match
+#import postgr
 import mongo
 from mongo import add_user, view_users, get_push
 from mongo import set_push, get_user, get_list_user
@@ -21,8 +20,6 @@ import locale
 
 locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
 
-# logger = telebot.logger
-# telebot.logger.setLevel(logging.DEBUG)
 bot.set_my_commands(
     commands=[
         telebot.types.BotCommand("start", "start_parse"),
@@ -75,7 +72,8 @@ def user_verif(message):
 
 
 # СТАРТУЕМ ОТСЮДА
-@bot.message_handler(content_types='text')
+#@bot.message_handler(content_types='text')
+@bot.message_handler(commands='start')
 def button_country_news(message):
     if not user_verif(message):
         return
@@ -138,9 +136,8 @@ def table_text(message, back=""):
         back_button(markup)
         news_coll = db['news']
         dict_news = {}
-        for news in news_coll.find().limit(50).sort('date',-1):
-            date = news['date'].strftime("%H:%M")
-            title = '{} {}'.format(date, news['title']) 
+        for news in news_coll.find().limit(50).sort('date', -1):
+            title = '{} {}'.format(news['date'].split()[1], news['title']) 
             markup.add(types.KeyboardButton(title))
             dict_news[title] = [news['logo'], news['text']]
         bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
@@ -160,9 +157,9 @@ def table_text(message, back=""):
                                reply_markup=markup)
         bot.register_next_step_handler(msg, get_dict_review)
     elif message.text == "update" and user_id == message.chat.id:
+        mongo.update()
+        bot.send_message(message.chat.id, 'Обновил')
         for name in mass_contry.values():
-            mongo.add_calendar(name, '2022/2023')
-            mongo.add_table(name, '2022/2023')
             #postgr.add_table(name)
             #postgr.add_calendar(name)
             bot.send_message(message.chat.id, f'Обновил {name}')
@@ -173,7 +170,8 @@ def table_text(message, back=""):
     elif 'Ближайшие матчи' in [message.text, back]:
         back_button(markup)
         buttons = ['Live','Вчера', 'Сегодня', 'Завтра']
-        markup.add(buttons[0])
+        if len(upcoming_match(buttons[0])) !=0:
+            markup.add(buttons[0])
         markup.add(*[x for x in buttons[1:]])
         msg = bot.send_message(message.chat.id, 'Матчи',
                                reply_markup=markup)
@@ -192,7 +190,7 @@ def button_days(message, buttons):
     if message.text in buttons:
         markup = types.ReplyKeyboardMarkup()
         back_button(markup)
-        matches = tomorrow(message.text)
+        matches = upcoming_match(message.text)
         if matches is None:
             msg = bot.send_message(message.chat.id, 'Нет матчей')
             return bot.register_next_step_handler(msg, button_days, buttons)
@@ -262,7 +260,7 @@ def create_table(message, country_button):
                          f'{country_button}. Плей-офф! \n\n{world_playoff()}')
         return calendar_and_table(message, back=country_button)
     else:
-        mass = mongo.get_tab(mass_contry[country_button],'2022/2023')
+        mass = mongo.get_tab(mass_contry[country_button])
         #mass1 = postgr.get_table(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
@@ -294,12 +292,12 @@ def result_team(message, dict_team, country_button):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("Главное меню", callback_data="back"))
         try:
-            text = message.text.split("|")[1].strip()
+            name_team = message.text.split("|")[1].strip()
         except IndexError:
-            text = message.text
-        if text in dict_team:
+            name_team = message.text
+        if name_team in dict_team:
             list_date = []
-            for date in dict_team[text][3]:
+            for date in dict_team[name_team][3]:
                 #true_date = parent_word(
                 true_date = datetime.strptime(date.split("|")[0].split()[0],
                                       '%d-%m-%Y').strftime('%d %B')
@@ -311,7 +309,7 @@ def result_team(message, dict_team, country_button):
                                               escape=True))
             bot.delete_message(message.chat.id, message.message_id)
             msg = bot.send_photo(message.chat.id,
-                                 mongo.get_logo(mass_contry[country_button],'2022/2023', text),
+                                 mongo.get_logo(name_team),
                                  #postgr.get_logo(mass_contry[country_button], text),
                                  caption='\n\n'.join(list_date),
                                  reply_markup=markup,
@@ -325,7 +323,7 @@ def result_team(message, dict_team, country_button):
             calendar_and_table(message, back=country_button)
         else:
             raise KeyError
-    except Exception:
+    except Exception as e:
         msg = bot.send_message(message.chat.id,
                                f'Дорогой, {message.chat.first_name}. \
 ✅Выбери команду!\n\n\
@@ -342,7 +340,7 @@ def create_calendar(message, country_button):
         bot.send_message(message.chat.id, worldcup.worldcup_calendar())
         return calendar_and_table(message, back=country_button)
     elif country_button in mass_contry:
-        dict_calendar = mongo.get_cal(mass_contry[country_button], '2022/2023')
+        dict_calendar = mongo.get_cal(mass_contry[country_button])
         #dict_calendar1 = postgr.get_calendar(mass_contry[country_button])
         markup = types.ReplyKeyboardMarkup()
         menu_button(markup)
@@ -455,7 +453,7 @@ def get_dict_review(message, back=""):
         query = {'country': message.text}
     try:
         if message.text in list_name_site or back in list_name_site:
-            for key in video_coll.find(query).sort('_id',-1).limit(50):
+            for key in video_coll.find(query).sort('date',-1).limit(50):
                 button_champ_rev = types.KeyboardButton(key["desc"])
                 dict_review[key["desc"]] = key["link"]
                 markup.add(button_champ_rev)
@@ -488,6 +486,9 @@ def get_ref_review(message, dict_review, text):
     except Exception:
         table_text(message, back='Обзоры⚽')
 
+bot.enable_save_next_step_handlers(delay=2)
+
+bot.load_next_step_handlers()
 
 if __name__ == '__main__':
     while True:
