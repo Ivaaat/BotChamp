@@ -115,7 +115,6 @@ ligu-chempionov_1583405978161575552.jpg"
             'logo':logo,
             'text': text,
             'content_importance':content_importance}
-        list_news.append(dict_news)
         try:
             news_coll.insert_one(dict_news)
             if dict_news['content_importance']:

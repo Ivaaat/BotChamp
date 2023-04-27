@@ -252,116 +252,136 @@ def update():
             date_last = today_date
         i+=1
 
-def upcoming_matches():
+        
+class TodayMatch():
+    def __init__(self, date) -> None:
+        self.date = date
+        self.live_matches = []
+        self.not_played_matches = []
+        self.over_matches = []
+        self.times = []
+        self.calendar = db[f"calendar_{season}"]
+        self.table = db[f"table_{season}"]
+        if self.calendar.count_documents({}) == 0:
+            add_calendar(f"calendar_{season}")
+        if self.table.count_documents({}) == 0:
+            for country in update_champ.values():
+                add_table(country)
+        sess = requests.Session()
+        sess.headers.update(User_agent) 
+        today_date = (self.date).strftime("%Y-%m-%d")
+        parse_link = f"{parse_site}/stat/{today_date}.json"
+        response = sess.get(parse_link).json()
+        dict_now = response['matches']['football']['tournaments']
+        for id_champ in update_champ:
+            try:
+                for matches in dict_now[id_champ]['matches']:
+                    if matches['flags']['live'] == 1:
+                        self.live_matches.append(matches)
+                    elif matches['flags']['is_played'] == 1:
+                        self.over_matches.append(matches)
+                    else:
+                        self.not_played_matches.append(matches)
+            except KeyError:
+                     continue  
+    def update_live(self):
+        for live_match in self.live_matches:
+            match ='{} - {}'.format(live_match['teams'][0]['name'], 
+                                            live_match['teams'][1]['name']) 
+            results ='{} : {}'.format(live_match['result']['detailed']['goal1'], 
+                                        live_match['result']['detailed']['goal2']) 
+            self.calendar.update_one({'match':match},
+                                            {
+                                            '$set':{
+                                            'result':results,
+                                            'live':True,
+                                            'time' : live_match['status']['name']
+                                            }
+                                            })
+            
+    def sleep_before_match(self):
+        self.time_sleep = []
+        for future_match in self.not_played_matches:
+            match_name ='{} - {}'.format(future_match['teams'][0]['name'], 
+                                        future_match['teams'][1]['name']) 
+            if self.calendar.find_one({'match':match_name}) is not None:
+                time_match = datetime.strptime(future_match['time_str'],'%d.%m.%Y %H:%M')
+                if future_match['status']['name'] == 'Перенесён':
+                    continue
+                if time_match not in self.times:
+                    self.times.append(time_match)
+            else:
+                date = future_match['date'].split('-')
+                dates = '-'.join([date[2],date[1],date[0]])
+                self.calendar.insert_one({'match':match_name,
+                                                'date':' '.join([dates, future_match['time']]),
+                                                'result':'',
+                                                'tour':future_match['roundForLTAndMC'].split('-')[0],
+                                                'ends': False,
+                                                'country' : future_match['section'],
+                                                'champ': future_match['link_title'].split('.')[3].strip()
+                                                }
+                                            )  
+        self.times = sorted(self.times)
+        
+    def update_over(self):
+        for match_end in self.over_matches:
+            match ='{} - {}'.format(match_end['teams'][0]['name'], 
+                                            match_end['teams'][1]['name']) 
+            if self.calendar.find_one({'match':match,'ends':True}) is None:
+                results ='{} : {}'.format(match_end['result']['detailed']['goal1'], 
+                                        match_end['result']['detailed']['goal2']) 
+                date = match_end['date'].split('-')
+                dates = '-'.join([date[2],date[1],date[0]])
+                self.calendar.update_one({'match':match},
+                                            {
+                                            '$set':{
+                                            'date':' '.join([dates, match_end['time']]),
+                                            'result':results,
+                                            'tour':match_end['roundForLTAndMC'].split('-')[0],
+                                            'ends': True,
+                                            'live':False,
+                                            'country' : match_end['section'],
+                                            'champ': match_end['link_title'].split('.')[3].strip()
+                                            }
+                                            }
+                                        )  
+                add_table(match_end['section'])
+
+
+def today_match():
     i = 0
-    calendar = db[f"calendar_{season}"]
-    table = db[f"table_{season}"]
-    if calendar.count_documents({}) == 0:
-        add_calendar(f"calendar_{season}")
-    if table.count_documents({}) == 0:
-        for country in update_champ.values():
-            add_table(country)
     while True:
         try:
-            sess = requests.Session()
-            sess.headers.update(User_agent) 
-            today_date = (datetime.now() + timedelta(i)).strftime("%Y-%m-%d")
-            parse_link = f"{parse_site}/stat/{today_date}.json"
-            response = sess.get(parse_link).json()
-            live = []
-            end = []
-            future = []
-            dict_now = response['matches']['football']['tournaments']
-            for id_champ in update_champ:
-                try:
-                    for matches in dict_now[id_champ]['matches']:
-                        if matches['flags']['live'] == 1:
-                            live.append(matches)
-                        elif matches['flags']['is_played'] == 1:
-                            end.append(matches)
-                        else:
-                            future.append(matches)
-                except KeyError:
-                     continue  
-            if len(live) > 0:
-                for live_match in live:
-                    match ='{} - {}'.format(live_match['teams'][0]['name'], 
-                                                    live_match['teams'][1]['name']) 
-                    results ='{} : {}'.format(live_match['result']['detailed']['goal1'], 
-                                                live_match['result']['detailed']['goal2']) 
-                    calendar.update_one({'match':match},
-                                                    {
-                                                    '$set':{
-                                                    'result':results,+
-                                                    'live':True,
-                                                    'time' : live_match['status']['name']
-                                                    }
-                                                    })
-                time.sleep(30)
-                if len(end) == 0:
-                    upcoming_matches()
-            if ends := len(end) > 0:
-                for match_end in end:
-                    match ='{} - {}'.format(match_end['teams'][0]['name'], 
-                                                    match_end['teams'][1]['name']) 
-                    if calendar.find_one({'match':match,'ends':True}) is None:
-                        results ='{} : {}'.format(match_end['result']['detailed']['goal1'], 
-                                                match_end['result']['detailed']['goal2']) 
-                        date = match_end['date'].split('-')
-                        dates = '-'.join([date[2],date[1],date[0]])
-                        calendar.update_one({'match':match},
-                                                    {
-                                                    '$set':{
-                                                    'date':' '.join([dates, match_end['time']]),
-                                                    'result':results,
-                                                    'tour':match_end['roundForLTAndMC'].split('-')[0],
-                                                    'ends': ends,
-                                                    'live':False,
-                                                    'country' : match_end['section'],
-                                                    'champ': match_end['link_title'].split('.')[3].strip()
-                                                    }
-                                                    }
-                                                )  
-                        add_table(match_end['section'])
-                    if len(live) > 0:
-                        upcoming_matches()
-            if ends := len(future) > 0:
-                time_list = []
-                for future_match in future:
-                    match ='{} - {}'.format(future_match['teams'][0]['name'], 
-                                                future_match['teams'][1]['name']) 
-                    if calendar.find_one({'match':match}) is not None:
-                        time_match = datetime.strptime(future_match['time_str'],'%d.%m.%Y %H:%M')
-                        if future_match['status']['name'] == 'Перенесён':
-                            continue
-                        if time_match not in time_list:
-                            time_list.append(time_match)
-                        time_list.sort()
-                        for date_update in time_list:
-                            seconds_sleep = (date_update - datetime.now()).total_seconds()
-                            time.sleep(seconds_sleep) 
-                            upcoming_matches()  
-                    else:
-                        date = future_match['date'].split('-')
-                        dates = '-'.join([date[2],date[1],date[0]])
-                        calendar.insert_one({'match':match,
-                                                        'date':' '.join([dates, future_match['time']]),
-                                                        'result':'',
-                                                        'tour':future_match['roundForLTAndMC'].split('-')[0],
-                                                        'ends': not ends,
-                                                        'country' : future_match['section'],
-                                                        'champ': future_match['link_title'].split('.')[3].strip()
-                                                        }
-                                                    )  
+            match = TodayMatch(datetime.now() + timedelta(i))
+            len_live = len(match.live_matches)
+            if len_live > 0:
+                match_live = TodayMatch(datetime.now())
+                while len(match_live.live_matches) == len_live:
+                    match_live = TodayMatch(datetime.now())
+                    match_live.update_live()
+                    time.sleep(30)
+            len_over = len(match.over_matches)
+            if len_over > 0:
+                match.update_over()
+            len_not_played = len(match.not_played_matches)
+            if len_not_played > 0:
+                match.sleep_before_match()
+                for date_update in match.times:
+                    try:
+                        delta_shift = timedelta(seconds=60) 
+                        seconds_sleep = (date_update - datetime.now() + delta_shift).total_seconds()
+                        time.sleep(seconds_sleep)
+                        today_match()
+                    except ValueError:
+                        continue
             i+=1
         except Exception as e:
-            bot.send_message(user_id, e)
-            continue  
+            bot.send_message(user_id, f'live{e}')
+            continue
         
-            
-                
 
-threading.Thread(target=upcoming_matches).start()           
+threading.Thread(target=today_match).start()           
 
 #db.auth('user_id', '12345')
 users_col = dbs['users']

@@ -18,3 +18,5 @@ pict.py
 world_champ.py
 webhook_cert.pem
 webhook_pkey.pem
+.handler-saves
+*.save
