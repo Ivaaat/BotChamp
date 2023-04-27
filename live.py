@@ -21,15 +21,15 @@ def upcoming_match(button):
     for match in mongo_calend:
         name_champ_tour = '{}. {}-й тур'.format(match['champ'], match['tour'])
         if match['live']:
-            time_match =" | {}  Live | ".format(match['time']) 
+            time_match =" | {} ".format(match['time']) 
         elif day == -1:
-            time_match = ""
+            time_match = " |"
         else:
-            time_match = " | {} | ".format(match['date'].split()[1]) 
+            time_match = ", {} |".format(match['date'].split()[1]) 
         
         if name_champ_tour not in list_matches:
             list_matches.append(name_champ_tour)
-        result = '| {} | {} {}'.format(
+        result = '| {}  {} {}'.format(
                     match['match'],
                     match['result'],
                     time_match)
