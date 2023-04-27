@@ -364,6 +364,8 @@ def today_match():
             len_over = len(match.over_matches)
             if len_over > 0:
                 match.update_over()
+                if len(match_live.live_matches) > 0:
+                    continue
             len_not_played = len(match.not_played_matches)
             if len_not_played > 0:
                 match.sleep_before_match()
@@ -372,6 +374,7 @@ def today_match():
                         delta_shift = timedelta(seconds=60) 
                         seconds_sleep = (date_update - datetime.now() + delta_shift).total_seconds()
                         time.sleep(seconds_sleep)
+                        bot.send_message(user_id, f'Матч начался')
                         today_match()
                     except ValueError:
                         continue
