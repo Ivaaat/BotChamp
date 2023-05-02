@@ -15,6 +15,8 @@ from datetime import datetime
 db = client_champ['json_champ']
 video_coll = db['video']
 
+db_user = client_champ['users-table']
+users_col = db_user['users']
 
 indexes = [name_index['name'] for name_index in video_coll.list_indexes()] 
 if 'desc_1' not in indexes:
@@ -84,7 +86,7 @@ https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1], clear_date
     return asd
 
 
-def rutube_video(query="обзор", i=21):
+def rutube_video(query="обзор", i=2):
     video_dict = {}
     for j in range(1,i):
         req = requests.get(f'https://rutube.ru/metainfo/tv/255003/page-{j}')
@@ -145,8 +147,6 @@ def football_video(link):
 
 
 def send_and_bd(func, dict_query):
-    db = client_champ['users-table']
-    users_col = db['users']
     if video_coll.count_documents({}) == 0:
         add_video(func, dict_query)
         print('добавляю все')
@@ -163,11 +163,7 @@ def send_and_bd(func, dict_query):
                                         "link": link_date[0], 
                                         "country":key,
                                         'date':link_date[1]})
-                        for id in users_col.find({'Push':True}):
-                            int_id = int(id['_id'])
-                            msg = bot.send_message(int_id, "{}\n {}".format(desc_video, link_date[0]))
-                            if int_id < 0:
-                                bot.pin_chat_message(int_id, msg.message_id)
+                        send_user(desc_video, link_date[0])
                     except errors.DuplicateKeyError:
                         break
                 time.sleep(120)
@@ -175,7 +171,15 @@ def send_and_bd(func, dict_query):
         except Exception as e:
             bot.send_message(377190896, f"пиздарики{key}\n {e}")
             time.sleep(1800)
-                
+
+
+def send_user(desc_video, link):
+    for id in users_col.find({'Push':True}):
+        int_id = int(id['_id'])
+        msg = bot.send_message(int_id, "{}\n {}".format(desc_video, link))
+        if int_id < 0:
+            bot.pin_chat_message(int_id, msg.message_id)
+
 
 def add_video(func, dict_query):
     for key, query in dict_query.items():
@@ -210,12 +214,13 @@ def update_rutube():
                                                 "link": video_date[0],
                                                 'date':  video_date[1], 
                                                 "country":country})
+                            send_user(title, video_date[0])
                             break
                 except errors.DuplicateKeyError:
                     break
             time.sleep(1800)
         except Exception as e:
-            bot.send_message(377190896, f"пиздарики\n {e}")
+            bot.send_message(377190896, f"пиздарики{__name__} \n {e}")
             time.sleep(1800)
 
 

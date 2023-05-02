@@ -273,6 +273,19 @@ class TodayMatch():
         parse_link = f"{parse_site}/stat/{today_date}.json"
         response = sess.get(parse_link).json()
         dict_now = response['matches']['football']['tournaments']
+        for value in dict_now.values():
+            try:
+                for matches in value['matches']:
+                    if matches['flags']['important'] != 1:
+                        continue
+                    if matches['flags']['live'] == 1:
+                            self.live_matches.append(matches)
+                    elif matches['flags']['is_played'] == 1:
+                        self.over_matches.append(matches)
+                    else:
+                        self.not_played_matches.append(matches)
+            except KeyError:
+                     continue  
         for id_champ in update_champ:
             try:
                 for matches in dict_now[id_champ]['matches']:
@@ -284,6 +297,7 @@ class TodayMatch():
                         self.not_played_matches.append(matches)
             except KeyError:
                      continue  
+            
     def update_live(self):
         for live_match in self.live_matches:
             match ='{} - {}'.format(live_match['teams'][0]['name'], 
