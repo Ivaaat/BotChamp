@@ -3,7 +3,7 @@ from config import User_agent, update_champ
 import time
 from championat import Calendar, Table
 import threading
-from config import parse_site, update_champ, db, dbs, bot
+from config import parse_site, update_champ, db, bot
 from config import user_id, dict_match, season
 import requests
 import pymongo
@@ -85,60 +85,7 @@ def add_table(name):
                                     })
 
 
-def get_logo(team):
-    country = db[f'table_{season}']
-    logo = country.find_one({'team':team})
-    return logo["logo"]
 
-
-def get_cal(name):
-    country_calendar = db[f'calendar_{season}']
-    match_calendar = {}
-    for i in range(1,len(country_calendar.find({"country": name}).distinct('tour')) + 1):
-        end_match = []
-        date = []
-        matches = []
-        calendar = country_calendar.find({"country": name, 'tour':str(i)} )
-        for match in calendar:
-            end_match.append(match['ends'])
-            date.append(match['date'])
-            matches.append(' | '.join((match['date'], 
-                                        match['match'], 
-                                        match['result'])))
-        match_calendar[f'Тур {str(i)}'] = {'Матчи': matches,
-                                        'start':date[0] ,
-                                        'end':date[-1],
-                                        'Закончен': not False in end_match}
-    return match_calendar
-
-
-def sortByAlphabet(inputStr):
-    return int(inputStr[:2])
-
-
-def sort_date(date):
-    if len(date.split("|")[0].split()) == 1:
-        date = date.split("|")[0].replace('.', '-') + " 23:59"
-        return date.strip()
-    return date.split('|')[0].replace('.', '-').strip()
-
-
-def get_tab(name):
-    country = db[f'table_{season}']
-    calendar = {}
-    country_calendar = db[f"calendar_{season}"]
-    for team in country.find({"country": name}):
-        six_match = country_calendar.find({'match':{"$regex":team['team']}, 'ends': True}).sort("$natural",1)
-        calendar[team['team']] = team['games'], \
-                                team['points'], \
-                                team['balls'],\
-                                [' | '.join([match['date'], 
-                                             match['match'], 
-                                             match['result']]) for match in six_match][-6:]
-    return calendar
-
-
-#threading.Thread(target=update_base).start()
 def update():
     calendar = db[f"calendar_{season}"]
     i = 0
@@ -310,104 +257,3 @@ def update_all(i=0):
             break
 
 #update_all(i = 20)
-        
-
-#threading.Thread(target=class_request).start()                  
-
-
-# live = threading.Event()
-# past = threading.Event()
-# future = threading.Event()
-
-# t1 = threading.Thread(target=class_request, args=(Live(), live, past))
-# t2 = threading.Thread(target=class_request, args=(Past(), e2, e3))
-# t3 = threading.Thread(target=class_request, args=(Future(), e3, e1))
-
-#         elif matches['flags']['is_played'] == 1:
-#             self.over_matches.append(matches)
-#         else:
-#             self.not_played_matches.append(matches)
-# except KeyError:
-#         continue  
-
-
-#db.auth('user_id', '12345')
-users_col = dbs['users']
-
-
-def add_user(employee_name, id, push=False):
-    users = {"_id": str(id),
-             "Name": employee_name,
-             "Push": push
-             }
-    try:
-        users_col.insert_one(users)
-        return True
-    except Exception():
-        return False
-    
-
-def get_list_user():
-    list_user = []
-    for user_view in users_col.find():
-        for key, value in user_view.items():
-            if key == "_id":
-                list_user.append(int(value))
-    return list_user
-
-
-def get_live():
-    dict_live = {}
-    list_live = []
-    for live_view in users_col.find():
-        try:
-            for key, value in live_view['live'].items():
-                if value:
-                    list_live.append(key)
-            dict_live[live_view['_id']] = list_live
-        except KeyError:
-            continue
-    return dict_live
-
-
-def view_users():
-    user = ''
-    for user_view in users_col.find():
-        for key, value in user_view.items():
-            user += f'{key}: {value}\n'
-        user += '\n'
-    return user
-
-
-def set_push(id, bool_push):
-    users_col.update_one({"_id": str(id)},
-                         {"$set": {"Push": bool_push}})
-
-
-def add_field(id, num_field, bool_push):
-    users_col.update_one({"_id": str(id)},
-                         {"$set": {'live': {num_field: bool_push}}})
-
-
-def delete_field(id, name_field):
-    users_col.update_one({"_id": str(id)},
-                         {"$unset": {f"{name_field}": 1}})
-
-
-def get_push(id, name_field=""):
-    push_dict = users_col.find_one({"_id": str(id)})
-    try:
-        if name_field != "":
-            return push_dict[name_field]
-        else:
-            return push_dict['Push']
-    except KeyError:
-        return ""
-
-
-def get_user(id):
-    user_dict = users_col.find_one({"_id": str(id)})
-    if user_dict is None:
-        return False
-    else:
-        return True
