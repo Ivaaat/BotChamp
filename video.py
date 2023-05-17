@@ -50,7 +50,7 @@ def bs4_youtube(query):
             except ValueError:
                 continue
         asd[desc] = '\
-https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1], clear_date
+https://www.youtube.com/watch?v=' + data[i][:-1], clear_date
         i += 1
     return asd
 
@@ -80,7 +80,7 @@ def youtube_video(query):
             except ValueError:
                 clear_date = datetime.strptime(date,"%d.%m.%y")
             asd[desc] = '\
-https://www.youtube.com/watch?v=' + data[i][:len(data[i])-1], clear_date
+https://www.youtube.com/watch?v=' + data[i][:-1], clear_date
         i += 1
         continue
     return asd
@@ -99,8 +99,12 @@ def rutube_video(query="обзор", i=2):
                 date = title[num_list].split()[-1]
                 b = num_list
                 while '.' not in date:
-                    date = title[b-1].split()[-1]
-                    b-=1
+                    try:
+                        date = title[b+1].split()[-1]
+                        b+=1
+                    except IndexError:
+                        date = title[-2].split()[-1]
+                        break
                 try:
                     clear_date = datetime.strptime(date,"%d.%m.%Y")
                 except ValueError:
@@ -165,7 +169,7 @@ def send_and_bd(func, dict_query):
                                         'date':link_date[1]})
                         send_user(desc_video, link_date[0])
                     except errors.DuplicateKeyError:
-                        break
+                        continue
                 time.sleep(120)
             time.sleep(1800)
         except Exception as e:
@@ -217,7 +221,7 @@ def update_rutube():
                             send_user(title, video_date[0])
                             break
                 except errors.DuplicateKeyError:
-                    break
+                    continue
             time.sleep(1800)
         except Exception as e:
             bot.send_message(377190896, f"пиздарики{__name__} \n {e}")
@@ -225,7 +229,7 @@ def update_rutube():
 
 
 threading.Timer(1, update_rutube).start()
-threading.Timer(1, send_and_bd, [youtube_video, dict_youtube]).start()
+#threading.Timer(1, send_and_bd, [youtube_video, dict_youtube]).start()
 threading.Timer(1, send_and_bd, [football_video, dict_footbal_video]).start()
-threading.Timer(1, send_and_bd, [bs4_youtube, mass_review]).start()
+#threading.Timer(1, send_and_bd, [bs4_youtube, mass_review]).start()
 

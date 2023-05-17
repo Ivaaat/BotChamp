@@ -91,7 +91,11 @@ def rss_news(response):
         link = news_list['link']
         title = news_list["title"].replace('&#039;','\'')
         time = news_list['pubDate'].split()[4].split(':')
-        date = ' '.join([datetime.now().strftime("%Y-%m-%d"),'{}:{}'.format(time[0],time[1])])
+        day = news_list['pubDate'].split()[1]
+        date_pub = str(datetime.now().date())
+        date = '{} {}:{}'.format(date_pub.replace(date_pub[-2:], day),
+                                                time[0],
+                                                time[1])
         try:
             logo = news_list['enclosure']['@url']
         except KeyError:

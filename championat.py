@@ -16,7 +16,7 @@ def parent_word(month):
 
 
 class Championat:
-    def __init__(self, country=""):
+    def __init__(self, country):
         self.country = country
         self.url = parse_site
         self.url_calendar = ""
@@ -33,7 +33,7 @@ class Championat:
 
 
 class Calendar(Championat):
-    def __init__(self, country=""):
+    def __init__(self, country):
         super().__init__(country)
         parse_calendar = self.tree.xpath(xpath.parse_text)
         self.url_calendar = '{}{}'.format(parse_site, parse_calendar[2])

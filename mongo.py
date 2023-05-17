@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 from config import User_agent, update_champ
 import time
-from championat import Calendar, Table, parent_word
+from championat import Calendar, Table
 import threading
 from config import parse_site, update_champ, db, dbs, bot
 from config import user_id, dict_match, season
 import requests
 import pymongo
+from pymongo import errors
 
 
 def add_calendar(name_champ):
@@ -137,106 +138,6 @@ def get_tab(name):
     return calendar
 
 
-def get_start_end_tour(name, next_date):
-    country = db[name]
-    calendar = country.find_one({"Чемпионат": '2022/2023'})
-    for name_tour, tour in calendar['Календарь'].items():
-        if tour['Закончен']:
-            continue
-        next_date = tour['end']
-        if next_date == tour['start']:
-            # if next_date.date() == tour['start'].date():
-            dict_match = {}
-            for name_match in tour['Матчи']:
-                date_match = datetime.strptime(
-                    name_match.split('|')[0].split()[0].replace('.', '-'),
-                    '%d-%m-%Y').strftime('%d %B, %A').upper()
-                time_match = name_match.split('|')[0].split()[1]
-                if 'Шальке' in name_match:
-                    asdx = name_match.split('|')[1].strip().replace(
-                        '-', ' ', 1)
-                    # match = asdx.replace('-', time_match)
-                    clear_name = asdx.split("-")
-                else:
-                    # match = name_match.split('|')[1].strip().replace(
-                    # '-', time_match)
-                    clear_name = name_match.split('|')[1].split("-")
-                if date_match not in dict_match:
-                    list_match_logo = []
-                list_match_logo.append(time_match)
-                for name_team in clear_name:
-                    list_match_logo.append({name_team.strip(): get_logo(
-                        name, name_team.strip())})
-                dict_match[date_match] = list_match_logo
-        # elif datetime.now() > tour['end']:
-        elif next_date == tour['end']:
-            dict_match = {}
-            for name_match in tour['Матчи']:
-                date_match = datetime.strptime(
-                    name_match.split('|')[0].split()[0].replace('.', '-'),
-                    '%d-%m-%Y').strftime('%d %B, %A').upper()
-                date_match = parent_word(date_match)
-                results_match = name_match.split('|')[2].strip()
-                if 'Шальке' in name_match:
-                    asdx = name_match.split('|')[1].strip().replace(
-                        '-', ' ', 1)
-                    clear_name = asdx.split("-")
-                else:
-                    clear_name = name_match.split('|')[1].split("-")
-                if date_match not in dict_match:
-                    list_match_logo = []
-                list_match_logo.append(results_match)
-                for name_team in clear_name:
-                    if name_team == ' Брайтон энд Хоув Альбион ':
-                        list_match_logo.append(
-                            {'Брайтон': get_logo(name, name_team.strip())})
-                        continue
-                    list_match_logo.append(
-                        {name_team.strip(): get_logo(name, name_team.strip())})
-                dict_match[date_match] = list_match_logo
-            break
-        else:
-            continue
-    return dict_match, name_tour, len(tour['Матчи'])
-
-
-def update_base():
-    i = 0
-    while True:
-        try:
-            sess = requests.Session()
-            sess.headers.update(User_agent) 
-            today_date = (datetime.now() + timedelta(i)).strftime("%Y-%m-%d")
-            parse_link = f"{parse_site}/stat/{today_date}.json"
-            response = sess.get(parse_link).json()
-            wait_time : dict = {}
-            dict_now = response['matches']['football']['tournaments']
-            for id_champ, country in update_champ.items():
-                try:
-                    for matches in dict_now[id_champ]['matches']:
-                        time_delta = datetime.strptime(matches['time_str'],'%d.%m.%Y %H:%M') + \
-                            timedelta(hours=2, minutes=15)
-                        if matches['status']['name'] == 'Перенесён':
-                            continue
-                        if time_delta not in wait_time:
-                            wait_time[time_delta] = [country]
-                        else:
-                            if country not in wait_time[time_delta]:
-                                wait_time[time_delta].append(country)
-                except KeyError:
-                    continue
-            sorted_dict = dict(sorted(wait_time.items()))
-            for date_update, champions_names in sorted_dict.items():
-                seconds_sleep = (date_update - datetime.now()).total_seconds()
-                time.sleep(seconds_sleep)
-                for name_champ in champions_names:
-                    add_calendar(name_champ,'2022/2023') 
-                    add_table(name_champ,'2022/2023')
-                bot.send_message(user_id,'обновил {}'.format('\n'.join(champions_names)))
-            i+=1
-        except:
-            time.sleep(120)
-
 #threading.Thread(target=update_base).start()
 def update():
     calendar = db[f"calendar_{season}"]
@@ -253,152 +154,182 @@ def update():
         i+=1
 
         
-class TodayMatch():
-    def __init__(self, date) -> None:
-        self.date = date
-        self.live_matches = []
-        self.not_played_matches = []
-        self.over_matches = []
-        self.times = []
-        self.calendar = db[f"calendar_{season}"]
-        self.table = db[f"table_{season}"]
-        if self.calendar.count_documents({}) == 0:
-            add_calendar(f"calendar_{season}")
-        if self.table.count_documents({}) == 0:
-            for country in update_champ.values():
-                add_table(country)
-        sess = requests.Session()
-        sess.headers.update(User_agent) 
-        today_date = (self.date).strftime("%Y-%m-%d")
-        parse_link = f"{parse_site}/stat/{today_date}.json"
-        response = sess.get(parse_link).json()
-        dict_now = response['matches']['football']['tournaments']
-        for value in dict_now.values():
+class Request:
+    start = datetime.strptime('2022-07-10',"%Y-%m-%d")
+    end = datetime.strptime('2023-07-10', "%Y-%m-%d")
+
+    def __init__(self) -> None:
+        if self.start.date() == self.end.date():
+            raise ValueError('Сезон закончен')
+        self.important_matches = []
+        self.__sess = requests.Session()
+        self.__sess.headers.update(User_agent) 
+        self.__parse_link = "{}/stat/{}.json".format(parse_site, 
+                                                    Request.start.strftime("%Y-%m-%d"))
+        self._response = self.__sess.get(self.__parse_link).json()
+        try:
+            self._dict_now = self._response['matches']['football']['tournaments']
+        except TypeError:
+            raise ValueError('Сезон закончен')
+        for self.value in self._dict_now.values():
+            if self.value['data-id'] in dict_match:
+                for self.matches in self.value['matches']:
+                    self.important_matches.append(self.matches)
+
+    def live(self) -> None:
+        self.live_matches : list = []
+        for matches in self.important_matches:
             try:
-                for matches in value['matches']:
-                    if matches['flags']['important'] != 1:
-                        continue
-                    if matches['flags']['live'] == 1:
-                            self.live_matches.append(matches)
-                    elif matches['flags']['is_played'] == 1:
-                        self.over_matches.append(matches)
-                    else:
-                        self.not_played_matches.append(matches)
+                if matches['flags']['live'] == 1:
+                    self.live_matches.append(matches)
             except KeyError:
-                     continue  
-        for id_champ in update_champ:
-            try:
-                for matches in dict_now[id_champ]['matches']:
-                    if matches['flags']['live'] == 1:
-                        self.live_matches.append(matches)
-                    elif matches['flags']['is_played'] == 1:
-                        self.over_matches.append(matches)
-                    else:
-                        self.not_played_matches.append(matches)
-            except KeyError:
-                     continue  
-            
-    def update_live(self):
-        for live_match in self.live_matches:
-            match ='{} - {}'.format(live_match['teams'][0]['name'], 
-                                            live_match['teams'][1]['name']) 
-            results ='{} : {}'.format(live_match['result']['detailed']['goal1'], 
-                                        live_match['result']['detailed']['goal2']) 
-            self.calendar.update_one({'match':match},
-                                            {
-                                            '$set':{
-                                            'result':results,
-                                            'live':True,
-                                            'time' : live_match['status']['name']
-                                            }
-                                            })
-            
-    def sleep_before_match(self):
-        self.time_sleep = []
-        for future_match in self.not_played_matches:
-            match_name ='{} - {}'.format(future_match['teams'][0]['name'], 
-                                        future_match['teams'][1]['name']) 
-            if self.calendar.find_one({'match':match_name}) is not None:
-                time_match = datetime.strptime(future_match['time_str'],'%d.%m.%Y %H:%M')
-                if future_match['status']['name'] == 'Перенесён':
                     continue
-                if time_match not in self.times:
-                    self.times.append(time_match)
-            else:
-                date = future_match['date'].split('-')
-                dates = '-'.join([date[2],date[1],date[0]])
-                self.calendar.insert_one({'match':match_name,
-                                                'date':' '.join([dates, future_match['time']]),
-                                                'result':'',
-                                                'tour':future_match['roundForLTAndMC'].split('-')[0],
-                                                'ends': False,
-                                                'country' : future_match['section'],
-                                                'champ': future_match['link_title'].split('.')[3].strip()
-                                                }
-                                            )  
-        self.times = sorted(self.times)
-        
-    def update_over(self):
-        for match_end in self.over_matches:
-            match ='{} - {}'.format(match_end['teams'][0]['name'], 
-                                            match_end['teams'][1]['name']) 
-            if self.calendar.find_one({'match':match,'ends':True}) is None:
-                results ='{} : {}'.format(match_end['result']['detailed']['goal1'], 
-                                        match_end['result']['detailed']['goal2']) 
-                date = match_end['date'].split('-')
-                dates = '-'.join([date[2],date[1],date[0]])
-                self.calendar.update_one({'match':match},
-                                            {
-                                            '$set':{
-                                            'date':' '.join([dates, match_end['time']]),
-                                            'result':results,
-                                            'tour':match_end['roundForLTAndMC'].split('-')[0],
-                                            'ends': True,
-                                            'live':False,
-                                            'country' : match_end['section'],
-                                            'champ': match_end['link_title'].split('.')[3].strip()
-                                            }
-                                            }
-                                        )  
-                add_table(match_end['section'])
+        return len(self.live_matches)
+
+    def past(self) -> None:
+        self.complited_matches : list = []
+        for matches in self.important_matches:
+            try:
+                if matches['flags']['is_played'] == 1:
+                    self.complited_matches.append(matches)
+            except KeyError:
+                    continue
+        return len(self.complited_matches)
+
+    def future(self) -> None:
+        self.sleep_time : list = []
+        for matches in self.important_matches:
+            try:
+                date_match = (datetime.strptime(matches['time_str'], 
+                                                '%d.%m.%Y %H:%M'))
+                total = (date_match - self.start).total_seconds()
+                if total > 0 and total not in self.sleep_time:
+                    self.sleep_time.append(total)
+            except KeyError:
+                    continue
+        tomorrow = self.start + timedelta(1)
+        midnight = tomorrow.replace(hour=0, minute=5, second=0, microsecond=0)
+        total = (midnight - self.start).total_seconds()
+        self.sleep_time.append(total)
+        self.sleep_time = sorted(self.sleep_time)
+        return len(self.sleep_time)
 
 
-def today_match():
-    i = 0
+class DB:
+    calendar = db[f"calendar_{season}"]
+    table = db[f"table_{season}"]
+
+    def __init__(self, matches) -> None:
+        self.update = []
+        for self.match in matches:
+            self.is_over = self.match['flags']['is_played'] == 1
+            self.is_live = self.match['flags']['live'] == 1
+            try:
+                self.result = self.match['score']['direct']['main']
+            except KeyError:
+                self.result = ""
+            try:
+                self.tour = self.match['roundForLTAndMC']
+            except KeyError:
+                continue
+            try:
+                self.champ = self.match['link_title'].split('.')[3].strip()
+            except:
+                self.champ = self.match['link_title']
+            self.update.append({
+                        'title': self.match['link_title'],
+                        'date': self.match['date'],
+                        'result': self.result,
+                        'tour': self.match['roundForLTAndMC'],
+                        'is_over': self.is_over,
+                        'country':self.match['section'],
+                        'is_live': self.is_live,
+                        'champ':self.champ,
+                        'time':self.match['time'],
+                        'datetime':datetime.fromtimestamp(self.match['pub_date']),
+                        'status': self.match['status']['name']
+            }
+            )     
+
+    
+    def update_db(self):
+        for match in self.update:
+            try:
+                self.calendar.insert_one(match)
+            except errors.DuplicateKeyError:
+                self.calendar.update_one({'title':match['title']}, 
+                                        {'$set':{
+                                            'result':match['result'],
+                                            'is_over':match['is_over'],
+                                            'is_live':match['is_live'],
+                                            'status':match['status']
+                                            }
+                                        }
+                )
+
+
+def update_today ():
+    while True: 
+        try:
+            Request.start = datetime.now()
+            req = Request()
+            if req.past() > 0:
+                past_update = DB(req.complited_matches)
+                past_update.update_db()
+            if req.live() > 0:
+                count = req.live()
+                while req.live() == count:
+                    req = Request()
+                    req.live()
+                    live_update = DB(req.live_matches)
+                    live_update.update_db()
+                    time.sleep(30)
+                continue
+            req.future()
+            future_update = DB(req.important_matches)
+            future_update.update_db()
+            for sleep in req.sleep_time:
+                bot.send_message(user_id,f'сплю до {sleep}')
+                time.sleep(sleep)
+                break
+        except ValueError:
+            break
+
+threading.Thread(target=update_today).start()       
+
+def update_all(i=0):
+    Request.start = datetime.now() - timedelta(i)
+    Request.end = datetime.now()
     while True:
         try:
-            match = TodayMatch(datetime.now() + timedelta(i))
-            len_live = len(match.live_matches)
-            if len_live > 0:
-                match_live = TodayMatch(datetime.now())
-                while len(match_live.live_matches) == len_live:
-                    match_live = TodayMatch(datetime.now())
-                    match_live.update_live()
-                    time.sleep(30)
-            len_over = len(match.over_matches)
-            if len_over > 0:
-                match.update_over()
-                if len(match_live.live_matches) > 0:
-                    continue
-            len_not_played = len(match.not_played_matches)
-            if len_not_played > 0:
-                match.sleep_before_match()
-                for date_update in match.times:
-                    try:
-                        delta_shift = timedelta(seconds=60) 
-                        seconds_sleep = (date_update - datetime.now() + delta_shift).total_seconds()
-                        time.sleep(seconds_sleep)
-                        bot.send_message(user_id, f'Матч начался')
-                        today_match()
-                    except ValueError:
-                        continue
-            i+=1
-        except Exception as e:
-            bot.send_message(user_id, f'live{e}')
-            continue
+            req = Request()
+            all_update = DB(req.important_matches)
+            all_update.update_db()
+            Request.start += timedelta(1)
+        except ValueError:
+            break
+
+#update_all(i = 20)
         
 
-threading.Thread(target=today_match).start()           
+#threading.Thread(target=class_request).start()                  
+
+
+# live = threading.Event()
+# past = threading.Event()
+# future = threading.Event()
+
+# t1 = threading.Thread(target=class_request, args=(Live(), live, past))
+# t2 = threading.Thread(target=class_request, args=(Past(), e2, e3))
+# t3 = threading.Thread(target=class_request, args=(Future(), e3, e1))
+
+#         elif matches['flags']['is_played'] == 1:
+#             self.over_matches.append(matches)
+#         else:
+#             self.not_played_matches.append(matches)
+# except KeyError:
+#         continue  
+
 
 #db.auth('user_id', '12345')
 users_col = dbs['users']
