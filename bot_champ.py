@@ -1,21 +1,22 @@
 import telebot
-from telebot import types, formatting
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot import formatting
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton 
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 import time
 from datetime import datetime
 from config import mass_contry
 from config import list_name_site, db, text_start
 from config import user_id, bot
-import news 
-import video 
-import flask
+# import news 
+# import video 
+# import flask
 from live import upcoming_match
 import mongo
 #import postgr
 import locale
 from abc import ABC, abstractmethod
-
-
+from telebot.handler_backends import State, StatesGroup
+from telebot import custom_filters
 
 locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
 
@@ -28,10 +29,18 @@ bot.set_my_commands(
 BACK = 'Назад'
 MAIN_MENU = 'Главное меню'
 
+class MyStates(StatesGroup):
+    # Just name variables differently
+    null = State()
+    one = State() # creating instances of State class is enough from now
+    second = State()
+    three = State()
+    four = State()
 
 # СТАРТУЕМ ОТСЮДА
 #@bot.message_handler(content_types='text')
-@bot.message_handler(commands='start')
+# Создаем четыре кнопки "Чемпионаты🏆" и "Новости📰  'Обзоры⚽' "Ближайшие матчи", после вызова старта"
+@bot.message_handler(commands=['start'])
 def main(message):
     step = Step()
     if step.users.find_one({'_id': message.chat.id}) is None:
@@ -42,28 +51,24 @@ def main(message):
                               })
         bot.send_message(user_id,
                          f"Новый пользователь {name}")
-    step.markup.add(ChampButton.button,
-               News.button,
-               Review.button,
-               UpcomingMatches.button,
-               row_width = 2
+    step.markup.add(*DICT_CLASS,row_width=2
                 )
     push = step.users.find_one({'_id':message.chat.id, 'Push': True}) is None
-    msg = bot.send_message(message.chat.id,
+    bot.set_state(message.from_user.id, MyStates.null, message.chat.id)
+    bot.send_message(message.chat.id,
                            text_start.format(
                                              message.chat.first_name, 
                                              message.chat.username, 
                                              bot.user.username, 
                                              'не' if push else ' '),
                            reply_markup=step.markup)
-
+    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+            data['main_keyboard'] = step.markup
     bot.delete_my_commands()
     bot.set_my_commands(commands=[
         telebot.types.BotCommand("push", "push notifications")])
-    bot.register_next_step_handler(msg, step.null_step)
 
-
-# обработка inline-кнопки главное меню
+#обработка inline-кнопки главное меню
 @bot.callback_query_handler(func=lambda call: call.data == 'back')
 def callback_query(call):
     bot.answer_callback_query(call.id, "Главное меню")
@@ -71,79 +76,203 @@ def callback_query(call):
     main(call.message)
 
 
-class Step:
+@bot.message_handler(state=MyStates.null)
+def null_step(message):
     users = db['users']
-
-    def __init__(self) -> None:
-        self.markup = types.ReplyKeyboardMarkup()
-        self.champ = ChampButton()
-        self.news = News()
-        self.review = Review()
-        self.upcoming = UpcomingMatches()
-
-    # Создаем три кнопки "Чемпионаты🏆" и "Новости📰  'Обзоры⚽' после вызова старта"
-    def null_step(self, message):
-        for class_instance in [self.champ, 
-                               self.news, 
-                               self.review, 
-                               self.upcoming]:
-            if class_instance.button.text == message.text:
-                buttons = class_instance.get_buttons()
-                msg = bot.send_message(message.chat.id, 
-                                    class_instance.message_text,
-                                        reply_markup=buttons)
-                return bot.register_next_step_handler(msg, 
-                                                    self.one_step, 
-                                                    class_instance
-                                                    )
+    try:
+        class_instance = DICT_CLASS[message.text]
+        bot.set_state(message.from_user.id, MyStates.one, message.chat.id)
+        bot.send_message(message.chat.id, 
+                        class_instance.message_text,
+                        reply_markup=class_instance.markup)
+        with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+            data['class_instance'] = class_instance
+            data['null_keyboard'] = class_instance.markup
+    except KeyError:
+        text = class_instance.message_text
         if message.text == '/push':
             id = message.chat.id
-            if self.users.find_one({'_id':id, 'Push':True}) is None:
-                self.users.update_one({'_id':id}, {'$set':{'Push':True}})
+            if users.find_one({'_id':id, 'Push':True}) is None:
+                push = True
                 text = 'Жди уведомлений!'
             else:
-                self.users.update_one({'_id':id}, {'$set':{'Push':False}})
+                not push 
                 text = 'Уведомлений не будет!'
-            bot.send_message(message.chat.id, text)
-            main(message)
+            users.update_one({'_id':id}, {'$set':{'Push':push}})
         elif message.text == "update" and user_id == message.chat.id:
             mongo.update()
-            bot.send_message(message.chat.id, 'Обновил')
             for name in mass_contry.values():
                 bot.send_message(message.chat.id, f'Обновил {name}')
                 time.sleep(5)
-            bot.send_message(message.chat.id, 'Обновил таблицы')
-            main(message)
+            text = 'Обновил таблицы'
         elif message.text == 'users' and user_id == message.chat.id:
-            list_users = [user['Name'] for user in self.users.find()]
-            bot.send_message(user_id, '\n'.join(list_users))
+            list_users = [user['Name'] for user in users.find()]
+            text =  '\n'.join(list_users)
         elif message.text == 'send' and user_id == message.chat.id:
-            list_users = [user['_id'] for user in self.users.find()]
+            list_users = [user['_id'] for user in users.find()]
             for id in list_users:
                 bot.send_message(id, "Вышло обновление. Жми /start")
-        else:
+        bot.send_message(message.chat.id, text)
+        main(message)
+
+
+@bot.message_handler(state=MyStates.one)
+def one_step(message):
+    try:
+        with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+            class_instance = data['class_instance']
+            if message.text == BACK:
+                bot.send_message(message.chat.id, 
+                        class_instance.message_text,
+                        reply_markup=data['main_keyboard'])
+                bot.set_state(message.from_user.id, MyStates.null, message.chat.id)
+                return
+            elif class_instance.check_text_in_markup(data['null_keyboard'], 
+                                                message.text):
+                class_instance.one_step(message)
+                class_instance.second_step
+                bot.set_state(message.from_user.id, MyStates.second, message.chat.id)
+                data['class_instance'] = class_instance
+                data['one_keyboard'] = class_instance.markup
+            else:
+                raise AttributeError
+    except AttributeError:
+        data['class_instance'] = class_instance
+        bot.set_state(message.from_user.id, MyStates.one, message.chat.id)
+
+
+@bot.message_handler(state=MyStates.second)
+def second_step(message):
+        try:
+            with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+                class_instance = data['class_instance']
+                if message.text == MAIN_MENU:
+                    bot.delete_state(message.from_user.id, message.chat.id)
+                    bot.send_message(message.chat.id, 
+                        class_instance.message_text,
+                        reply_markup=data['main_keyboard'])
+                    bot.set_state(message.from_user.id, MyStates.null, message.chat.id) 
+                    return
+                elif message.text == BACK :
+                    bot.send_message(message.chat.id, 
+                        class_instance.message_text,
+                        reply_markup=data['null_keyboard'])
+                    bot.set_state(message.from_user.id, MyStates.one, message.chat.id) 
+                    return
+                elif class_instance.check_text_in_markup(data['one_keyboard'], message.text):
+                    class_instance.second_step(message)
+                    class_instance.third_step
+                    bot.set_state(message.from_user.id, MyStates.three, message.chat.id)
+                    data['class_instance'] = class_instance
+                    data['second_keyboard'] = class_instance.markup
+                else:
+                    raise AttributeError
+        except AttributeError:
+            data['class_instance'] = class_instance
+            bot.set_state(message.from_user.id, MyStates.second, message.chat.id)
+
+
+@bot.message_handler(state=MyStates.three)
+def third_step(message):
+    try:
+        with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+            class_instance = data['class_instance']
+            if message.text == MAIN_MENU:
+                bot.delete_state(message.from_user.id, message.chat.id)
+                bot.send_message(message.chat.id, 
+                        class_instance.message_text,
+                        reply_markup=data['main_keyboard'])
+                bot.set_state(message.from_user.id, MyStates.null, message.chat.id) 
+            elif message.text == BACK:
+                bot.send_message(message.chat.id, 
+                            class_instance.message_text,
+                            reply_markup=data['one_keyboard']) 
+                bot.set_state(message.from_user.id, MyStates.second, message.chat.id) 
+                return
+            elif class_instance.check_text_in_markup(data['second_keyboard'], message.text):
+                class_instance.third_step(message)
+                class_instance.four_step
+                bot.set_state(message.from_user.id, MyStates.four, message.chat.id)
+                data['class_instance'] = class_instance
+                data['three_keyboard'] = class_instance.markup
+            else:
+                raise AttributeError
+    except AttributeError:
+        data['class_instance'] = class_instance
+        bot.set_state(message.from_user.id, MyStates.three, message.chat.id)
+ 
+class Step:
+    
+    users = db['users']
+
+    def __init__(self) -> None:
+        self.markup = ReplyKeyboardMarkup()
+
+    def null_step(self, message):
+        try:
+            class_instance = DICT_CLASS[message.text]
+            class_instance.button = message.text
+            msg = bot.send_message(message.chat.id, 
+                                class_instance.message_text,
+                                    reply_markup=class_instance.markup)
+            # bot.register_next_step_handler(msg, 
+            #                                 self.one_step, 
+            #                                 class_instance
+            #                                 )
+            with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+                data['button_1'] = message.text
+        except KeyError:
+            if message.text == '/push':
+                id = message.chat.id
+                if self.users.find_one({'_id':id, 'Push':True}) is None:
+                    push = True
+                    text = 'Жди уведомлений!'
+                else:
+                    not push 
+                    text = 'Уведомлений не будет!'
+                self.users.update_one({'_id':id}, {'$set':{'Push':push}})
+            elif message.text == "update" and user_id == message.chat.id:
+                mongo.update()
+                for name in mass_contry.values():
+                    bot.send_message(message.chat.id, f'Обновил {name}')
+                    time.sleep(5)
+                text = 'Обновил таблицы'
+            elif message.text == 'users' and user_id == message.chat.id:
+                list_users = [user['Name'] for user in self.users.find()]
+                text =  '\n'.join(list_users)
+            elif message.text == 'send' and user_id == message.chat.id:
+                list_users = [user['_id'] for user in self.users.find()]
+                for id in list_users:
+                    bot.send_message(id, "Вышло обновление. Жми /start")
+            bot.send_message(message.chat.id, text)
             main(message)
 
 
     def one_step(self, message, class_instance):
         try:
             if message.text == BACK:
-                return main(message)
+                #return main(message)
+                class_instance.markup = self.markup
+                message.text = class_instance.button
+                return self.null_step(message)
             if class_instance.check_text_in_markup(class_instance.markup, 
                                                    message.text):
-                    msg = class_instance.one_step(message)
-                    class_instance.second_step
-                    return bot.register_next_step_handler(msg, 
-                                                        self.second_step, 
-                                                        class_instance,
-                                                        )
+                class_instance.button_1 = message.text
+                msg = class_instance.one_step(message)
+                bot.register_next_step_handler(msg, 
+                                                    self.second_step, 
+                                                    class_instance,
+                                                    )
+                return class_instance.second_step
+
             else:
-                msg = bot.send_message(message.chat.id,
-                                    class_instance.button.text,
-                                    reply_markup=class_instance.markup)
                 raise AttributeError
         except AttributeError:
-            return bot.register_next_step_handler(msg, 
+            return self.one_step(message, class_instance)
+            # msg = bot.send_message(message.chat.id,
+            #                         class_instance.button,
+            #                         reply_markup=class_instance.markup)
+            return bot.register_next_step_handler(message, 
                                                 self.one_step, 
                                                 class_instance,
                                             )
@@ -154,35 +283,34 @@ class Step:
             if message.text == MAIN_MENU:
                 return main(message)
             elif message.text == BACK :
-                message.text = class_instance.button.text
+                message.text = class_instance.button
                 return self.null_step(message)
-            elif class_instance.check_text_in_markup(class_instance.markup, message.text):
+            elif class_instance.check_text_in_markup(class_instance.markup_1, message.text):
                 msg = class_instance.second_step(message)
-                class_instance.third_step
-                return bot.register_next_step_handler(msg, 
+                bot.register_next_step_handler(msg, 
                                                     self.third_step, 
                                                     class_instance,
                                                     )
             else:
-                msg = bot.send_message(message.chat.id,
-                                    class_instance.button.text,
-                                    reply_markup=class_instance.markup)
                 raise AttributeError
         except AttributeError:
-                return bot.register_next_step_handler(msg, 
-                                                    self.second_step, 
-                                                    class_instance,
-                                                    )
+                return self.one_step(message, class_instance)
+                # msg = bot.send_message(message.chat.id,
+                #                     class_instance.button_1,
+                #                     reply_markup=class_instance.markup)
+                # return bot.register_next_step_handler(msg, 
+                #                                     self.second_step, 
+                #                                     class_instance,
+                #                                     )
         
         
     def third_step(self, message, class_instance):
         if message.text == MAIN_MENU:
             return main(message)
         elif message.text == BACK:
-            class_instance.get_buttons()
-            message.text = class_instance.country_button
+            message.text = class_instance.button_1
             return self.one_step(message, class_instance)
-        elif class_instance.check_text_in_markup(class_instance.markup, message.text):
+        elif class_instance.check_text_in_markup(class_instance.markup_2, message.text):
             msg = class_instance.third_step(message)
             bot.register_next_step_handler(msg, 
                                             self.third_step, 
@@ -190,7 +318,7 @@ class Step:
                                             )
         else:
             msg = bot.send_message(message.chat.id,
-                                    class_instance.button.text,
+                                    class_instance.button,
                                     reply_markup=class_instance.markup)
             return bot.register_next_step_handler(msg, 
                                                 self.third_step, 
@@ -199,19 +327,24 @@ class Step:
 
 
 class СhampBot(ABC):
+
     @abstractmethod
-    def get_buttons(self):
-        self.markup = types.ReplyKeyboardMarkup()
+    def __init__(self):
+        self.markup = ReplyKeyboardMarkup()
         self.markup.add(BACK)
 
     @abstractmethod
-    def one_step(self, message):
-        self.markup = types.ReplyKeyboardMarkup(row_width=1)
+    def one_step(self):
+        self.markup = ReplyKeyboardMarkup(row_width=1)
         self.markup.add(MAIN_MENU, BACK)
-        bot.delete_message(message.chat.id, message.message_id - 1)
-        bot.delete_message(message.chat.id, message.message_id)
+        # i = 0
+        # while True:
+        #     try:
+        #         i+=1
+        #         bot.delete_message(message.chat.id, message.message_id - i)
+        #     except:
+        #         break
 
-    
     @staticmethod
     def check_text_in_markup(markup, message_text):
         for list_row in markup.keyboard:
@@ -222,21 +355,18 @@ class СhampBot(ABC):
 
 
 class ChampButton(СhampBot):
-    button = types.KeyboardButton('Чемпионаты🏆')
     message_text = 'Выбери чемпионат'
     button_calendar = 'Календарь🗓'
     button_table = 'Таблица⚽'
     calendar = db['calendar_2022/2023']
     table = db[f'table_2022/2023']
 
-    def get_buttons(self):
-        super().get_buttons()
-        for key in mass_contry:
-            self.markup.add(key)
-        return self.markup
+    def __init__(self):
+        super().__init__()
+        self.markup.add(*mass_contry,row_width=1)
     
     def one_step(self, message):
-        super().one_step(message)
+        super().one_step()
         self.country_button = message.text
         self.champ = ' '.join(self.country_button.split()[:-1])
         self.markup.add(self.button_calendar, 
@@ -251,22 +381,22 @@ class ChampButton(СhampBot):
             return bot.send_message(message.chat.id,
                             '{} Выбери тур, чтобы узнать результаты:'.format(
                     self.country_button
-                            ), reply_markup=self.calendar_button(message))
+                            ), reply_markup=self.calendar_button())
         else:
             self.third_step = self.team_button
             return bot.send_message(message.chat.id,
                         '{}.Таблица чемпионата!\n\
 Выбери команду, чтобы узнать последние результаты'.format(
                     self.country_button),
-                        reply_markup=self.table_button(message)
+                        reply_markup=self.table_button()
                         )
       
     
     def third_step(self, message):
         pass
 
-    def calendar_button(self, message):
-        super().one_step(message)
+    def calendar_button(self):
+        super().one_step()
         max_tour = self.calendar.find({'champ':self.champ}).sort('datetime',1).distinct('tour')
         max_tour.sort(key = lambda x:int(x.split('-')[0]))
         for tour in max_tour:
@@ -281,25 +411,23 @@ class ChampButton(СhampBot):
                                                     else "")
                                                     )
                                                     )
-            button = types.KeyboardButton(tour_button.strip())
-            self.markup.add(button)
+            self.markup.add(tour_button.strip())
         return self.markup
 
-    def table_button(self, message):
-        super().one_step(message)
+    def table_button(self):
+        super().one_step()
         j = 1
         for table_stat in self.table.find({'country':
                                            mass_contry[self.country_button]}
                                            ).sort('points',-1):
-            button = types.KeyboardButton(
-                                    "{}. | {} |  И: {}  О: {}  M: {}".format(
-                                        j,
-                                        table_stat['team'],
-                                        table_stat['games'],
-                                        table_stat['points'],
-                                        table_stat['balls']
-                                        )
-                                    )
+            button = "{}. | {} |  И: {}  О: {}  M: {}".format(
+                        j,
+                        table_stat['team'],
+                        table_stat['games'],
+                        table_stat['points'],
+                        table_stat['balls']
+                        )
+                                    
             self.markup.add(button)
             j += 1
         return self.markup
@@ -362,16 +490,14 @@ class ChampButton(СhampBot):
             
 
 class News(СhampBot):
-    button = types.KeyboardButton('Новости📰')
     news_coll = db['news']
     message_text = 'Новости📰'
 
-    def get_buttons(self):
-        super().get_buttons()
+    def __init__(self):
+        super().__init__()
         for news in News.news_coll.find().limit(50).sort('date', -1):
             title = '{} {}'.format(news['date'].split()[1], news['title']) 
-            self.markup.add(types.KeyboardButton(title))
-        return self.markup
+            self.markup.add(title)
     
     def one_step(self, message):
         news_doc = News.news_coll.find_one({'title':message.text.split(' ', 1)[1]})
@@ -394,18 +520,16 @@ class News(СhampBot):
 
 class UpcomingMatches(СhampBot):
     message_text = 'Выбери день'
-    button = types.KeyboardButton('Ближайшие матчи')
-
-    def get_buttons(self):
-        super().get_buttons()
+   
+    def __init__(self):
+        super().__init__()
         buttons = ['Live','Вчера', 'Сегодня', 'Завтра']
         if len(upcoming_match(buttons[0])) != 0:
             self.markup.add(buttons[0])
-        self.markup.add(*[x for x in buttons[1:]])
-        return self.markup
+        self.markup.add(*buttons[1:])
     
     def one_step(self, message):
-        super().one_step(message)
+        super().one_step()
         matches = upcoming_match(message.text)
         if matches is None:
             return bot.send_message(message.chat.id, 'Нет матчей')
@@ -415,32 +539,25 @@ class UpcomingMatches(СhampBot):
                                 reply_markup=self.markup)
     
     def second_step(self, message):
-        return bot.send_message(message.chat.id, 
-                                message.text,
-                                )
+        pass
     
 
 class Review(СhampBot):
     message_text = 'Выбери обзор'
-    button = types.KeyboardButton('Обзоры⚽')
     video_coll = db['video']
 
+    def __init__(self):
+        super().__init__()
+        self.markup.add(*list_name_site,row_width=1)
     
-    def get_buttons(self):
-        super().get_buttons()
-        for key in list_name_site:
-            self.markup.add(key)
-        return self.markup
-
     def one_step(self, message):
-        super().one_step(message)
+        super().one_step()
         if message.text == list_name_site[0]:
             query = {}
         else:
             query = {'country':message.text}
         for key in self.video_coll.find(query).sort('date',-1).limit(50):
-            button_champ_rev = types.KeyboardButton(key["desc"])
-            self.markup.add(button_champ_rev)
+            self.markup.add(key["desc"])
         return bot.send_message(message.chat.id, 'Выбери обзор',
                             reply_markup=self.markup)
 
@@ -450,14 +567,19 @@ class Review(СhampBot):
                                 "{}\n{}".format(message.text,
                                 video_ref['link']))
 
+DICT_CLASS = {'Чемпионаты🏆':ChampButton(),
+                'Новости📰':News(),
+                'Обзоры⚽':Review(),
+                'Ближайшие матчи':UpcomingMatches()}
 
-bot.enable_save_next_step_handlers(delay=2)
+#bot.enable_save_next_step_handlers(delay=2)
 
-bot.load_next_step_handlers()
+#bot.load_next_step_handlers()
 
 if __name__ == '__main__':
     while True:
         try:
+            bot.add_custom_filter(custom_filters.StateFilter(bot))
             bot.infinity_polling()
         except Exception:
             time.sleep(10)

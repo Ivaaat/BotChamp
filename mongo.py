@@ -8,6 +8,8 @@ from config import user_id, dict_match, season
 import requests
 import pymongo
 from pymongo import errors
+from threading import Thread, Event
+from time import sleep
 
 
 def add_calendar(name_champ):
@@ -116,7 +118,7 @@ class Request:
         self._response = self.__sess.get(self.__parse_link).json()
         try:
             self._dict_now = self._response['matches']['football']['tournaments']
-        except TypeError:
+        except:
             raise ValueError('Сезон закончен')
         for self.value in self._dict_now.values():
             if self.value['data-id'] in dict_match:
@@ -145,11 +147,12 @@ class Request:
 
     def future(self) -> None:
         self.sleep_time : list = []
+        shift = timedelta(seconds=60)
         for matches in self.important_matches:
             try:
                 date_match = (datetime.strptime(matches['time_str'], 
                                                 '%d.%m.%Y %H:%M'))
-                total = (date_match - self.start).total_seconds()
+                total = (date_match - self.start + shift).total_seconds()
                 if total > 0 and total not in self.sleep_time:
                     self.sleep_time.append(total)
             except KeyError:
@@ -209,10 +212,26 @@ class DB:
                                             'result':match['result'],
                                             'is_over':match['is_over'],
                                             'is_live':match['is_live'],
-                                            'status':match['status']
+                                            'status':match['status'],
+                                            'datetime':match['datetime'],
+                                            'time':match['time'],
+                                            'date':match['date']
+
                                             }
                                         }
                 )
+                
+    @classmethod
+    def update_all(cls):
+        for date_update in cls.calendar.find({'$or':[{'is_live':True}, 
+                                                      {'is_over':False}]}
+                                                      ).distinct('date'):
+            start = datetime.strptime(date_update,"%Y-%m-%d")
+            Request.start = start
+            req = Request()
+            all_update = DB(req.important_matches)
+            all_update.update_db()
+        bot.send_message(user_id, 'обновил базу')
 
 
 def update_today ():
@@ -236,24 +255,55 @@ def update_today ():
             future_update = DB(req.important_matches)
             future_update.update_db()
             for sleep in req.sleep_time:
-                bot.send_message(user_id,f'сплю до {sleep}')
+                bot.send_message(user_id, f'сплю до {sleep}')
                 time.sleep(sleep)
+                bot.send_message(user_id, f'кол-во Live = {req.live()}')
+                if len(req.sleep_time) == 1:
+                    DB.update_all()
                 break
         except ValueError:
             break
 
 threading.Thread(target=update_today).start()       
 
-def update_all(i=0):
-    Request.start = datetime.now() - timedelta(i)
-    Request.end = datetime.now()
-    while True:
-        try:
+def timer(func):
+    def _wrapper():
+        start = time.time()
+        func()
+        end  = time.time() - start
+        print(end)
+    return _wrapper
+
+@timer
+def update_all():
+    try:
+        for date_update in DB.calendar.find({'$or':[{'is_live':True}, {'is_over':False}]}).distinct('date'):
+            start = datetime.strptime(date_update,"%Y-%m-%d")
+            Request.start = start
             req = Request()
             all_update = DB(req.important_matches)
             all_update.update_db()
-            Request.start += timedelta(1)
-        except ValueError:
-            break
+    except ValueError:
+        return
+
+#update_all = timer(update_all)
+#update_all()
+
+
+
+def task(event: Event, id: int) -> None:
+    print(f'Thread {id} started. Waiting for the signal....')
+    event.wait()
+    print(f'Received signal. The thread {id} was completed.')
+
+def main() -> None:
+    event = Event()
+    t1 = Thread(target=task, args=(event, 1))
+    t2 = Thread(target=task, args=(event, 2))
+    t1.start()
+    t2.start()
+    print('Blocking the main thread for 3 seconds...')
+    sleep(3)
+    event.set()
 
 #update_all(i = 20)
