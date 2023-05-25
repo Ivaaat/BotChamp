@@ -255,7 +255,7 @@ def update_today ():
             future_update = DB(req.important_matches)
             future_update.update_db()
             for sleep in req.sleep_time:
-                bot.send_message(user_id, f'сплю до {sleep}')
+                bot.send_message(user_id, f'сплю до {sleep} /start')
                 time.sleep(sleep)
                 bot.send_message(user_id, f'кол-во Live = {req.live()}')
                 if len(req.sleep_time) == 1:
