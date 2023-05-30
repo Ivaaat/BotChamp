@@ -1,7 +1,7 @@
 import requests
 from lxml import html
 import xmltodict
-from config import parse_site, User_agent, rss_link, user_id, TOKEN, db, dbs
+from config import parse_site, User_agent, rss_link, user_id, TOKEN, db
 from datetime import datetime
 import time
 from pymongo import MongoClient, errors
@@ -23,7 +23,7 @@ if 'link_1' not in indexes:
     news_coll.create_index([("link", pymongo.ASCENDING)], unique=True)
 
 def news():
-    users_col = dbs['users']
+    users_col = db['users']
     timer = 120
     while True:
         try:

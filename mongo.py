@@ -8,9 +8,12 @@ from config import user_id, dict_match, season
 import requests
 import pymongo
 from pymongo import errors
-from threading import Thread, Event
-from time import sleep
 
+
+calendar = db['calendar_2022/2023']
+indexes = [name_index['name'] for name_index in calendar.list_indexes()] 
+if 'title_1' not in indexes:
+        calendar.create_index([("title", pymongo.ASCENDING)], unique=True)
 
 def add_calendar(name_champ):
     for id, country in update_champ.items():
@@ -104,17 +107,18 @@ def update():
 
         
 class Request:
-    start = datetime.strptime('2022-07-10',"%Y-%m-%d")
+    #start = datetime.strptime('2022-07-10',"%Y-%m-%d")
     end = datetime.strptime('2023-07-10', "%Y-%m-%d")
 
-    def __init__(self) -> None:
+    def __init__(self, start) -> None:
+        self.start = start
         if self.start.date() == self.end.date():
             raise ValueError('Сезон закончен')
         self.important_matches = []
         self.__sess = requests.Session()
         self.__sess.headers.update(User_agent) 
         self.__parse_link = "{}/stat/{}.json".format(parse_site, 
-                                                    Request.start.strftime("%Y-%m-%d"))
+                                                    start.strftime("%Y-%m-%d"))
         self._response = self.__sess.get(self.__parse_link).json()
         try:
             self._dict_now = self._response['matches']['football']['tournaments']
@@ -227,8 +231,7 @@ class DB:
                                                       {'is_over':False}]}
                                                       ).distinct('date'):
             start = datetime.strptime(date_update,"%Y-%m-%d")
-            Request.start = start
-            req = Request()
+            req = Request(start)
             all_update = DB(req.important_matches)
             all_update.update_db()
         bot.send_message(user_id, 'обновил базу')
@@ -237,15 +240,15 @@ class DB:
 def update_today ():
     while True: 
         try:
-            Request.start = datetime.now()
-            req = Request()
+            start = datetime.now()
+            req = Request(start)
             if req.past() > 0:
                 past_update = DB(req.complited_matches)
                 past_update.update_db()
             if req.live() > 0:
                 count = req.live()
                 while req.live() == count:
-                    req = Request()
+                    req = Request(start)
                     req.live()
                     live_update = DB(req.live_matches)
                     live_update.update_db()
@@ -274,36 +277,28 @@ def timer(func):
         print(end)
     return _wrapper
 
+
 @timer
 def update_all():
     try:
         for date_update in DB.calendar.find({'$or':[{'is_live':True}, {'is_over':False}]}).distinct('date'):
             start = datetime.strptime(date_update,"%Y-%m-%d")
-            Request.start = start
-            req = Request()
+            req = Request(start)
             all_update = DB(req.important_matches)
             all_update.update_db()
     except ValueError:
         return
 
-#update_all = timer(update_all)
-#update_all()
 
-
-
-def task(event: Event, id: int) -> None:
-    print(f'Thread {id} started. Waiting for the signal....')
-    event.wait()
-    print(f'Received signal. The thread {id} was completed.')
-
-def main() -> None:
-    event = Event()
-    t1 = Thread(target=task, args=(event, 1))
-    t2 = Thread(target=task, args=(event, 2))
-    t1.start()
-    t2.start()
-    print('Blocking the main thread for 3 seconds...')
-    sleep(3)
-    event.set()
-
-#update_all(i = 20)
+@timer
+def add_all():
+    start = datetime.strptime('2022-07-10',"%Y-%m-%d")
+    while True:
+        try:
+            req = Request(start)
+            all_update = DB(req.important_matches)
+            all_update.update_db()
+            start += timedelta(1)
+        except ValueError:
+                break
+        

@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from config import User_agent, dict_rutube, dict_youtube, bot
+from config import User_agent, dict_rutube, dict_youtube, bot, db
 from config import dict_footbal_video, mass_review, client_champ
 from xpath import review_xpath_href, review_xpath_title
 from xpath import review_xpath_date, review_xpath_match_href, review_xpath_France_href
@@ -12,11 +12,8 @@ import pymongo
 from pymongo import errors
 from datetime import datetime
 
-db = client_champ['json_champ']
 video_coll = db['video']
-
-db_user = client_champ['users-table']
-users_col = db_user['users']
+users_col = db['users']
 
 indexes = [name_index['name'] for name_index in video_coll.list_indexes()] 
 if 'desc_1' not in indexes:

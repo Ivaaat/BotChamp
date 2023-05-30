@@ -1,7 +1,5 @@
-import telebot
 from telebot import types, formatting
-from pymongo import MongoClient
-from config import mass_contry
+from config import mass_contry, db, bot
 from datetime import datetime
 import locale
 import live
@@ -11,13 +9,11 @@ import time
 import mongo
 import config
 
-bot = telebot.TeleBot(config.TOKEN)
 
-db = config.client_champ['json_champ']
 user_states_collection = db['users']
 news_coll = db['news']
 calendar = db['calendar_2022/2023']
-table = db[f'table_2022/2023']
+table = db['table_2022/2023']
 video_coll = db['video']
 
 locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
@@ -395,6 +391,11 @@ def start(message):
 def handle_text(message):
     if message.text == 'update' and message.chat.id == config.user_id:
         mongo.update_all()
+        for country in mass_contry.values():
+            mongo.add_table(country)
+        return
+    if message.text == 'all' and message.chat.id == config.user_id:
+        mongo.add_all()
         return
     state = get_state(message.chat.id)
     new_state_name = state.handle_input(bot, message)

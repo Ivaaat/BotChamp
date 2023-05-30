@@ -1,0 +1,19 @@
+version: '3'
+services:
+  #postr:
+    #image: postgres
+    #environment:
+      #POSTGRES_USER: postgres
+      #POSTGRES_PASSWORD: qwerty
+      #POSTGRES_DB: champ
+  mongo:
+    image: mongo
+    volumes: 
+        - /home/Vark/BotChamp/json:/docker-entrypoint-initdb.d
+  bot:
+    image: champ
+    depends_on: 
+         - mongo
+    volumes:
+        - /home/Vark/BotChamp:/apps/
+    command: python main.py
