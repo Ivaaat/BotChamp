@@ -1,29 +1,45 @@
 from telebot import types, formatting
-from config import mass_contry, db, bot
+import config
 from datetime import datetime
 import locale
+import sys
 import live
 import news 
 import video 
+import video
 import time
-import mongo
 import config
+import matches
+from pymongo import MongoClient
+import threading
+import telebot
 
 
-user_states_collection = db['users']
-news_coll = db['news']
-calendar = db['calendar_2022/2023']
-table = db['table_2022/2023']
-video_coll = db['video']
+user_states_collection = config.db['users']
+news_coll = config.db['news']
+calendar = config.db['foot']
+bot = telebot.TeleBot(config.TOKEN)
 
-locale.setlocale(locale.LC_TIME, ('ru_RU', 'UTF-8'))
+
+def set_russian_locale():
+    try:
+        locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
+    except locale.Error:
+        try:
+            locale.setlocale(locale.LC_ALL, 'Russian_Russia')
+        except locale.Error:
+            print('Не удалось установить русскую локаль', file=sys.stderr)
+
+client_champ = MongoClient()
+DB_NAME = client_champ['video_database']
+COLLECTION_NAME = 'videos'
+video_coll = DB_NAME[COLLECTION_NAME]
 
 
 class State:
-    def __init__(self, *args):
-        for i, arg in enumerate(args, 1):
-            attribute_name = f"state_{i}"
-            attribute_value = arg
+    def __init__(self, *attribute):
+        for i, attribute_value in enumerate(attribute, 1):
+            attribute_name = f'state_{i}'
             setattr(self, attribute_name, attribute_value)
         self.items = []
         self.width = 1
@@ -62,11 +78,9 @@ class MainMenuState(State):
         self.width = 2
 
     def handle_input(self, bot, message):
-        try:
+        if message.text in self.items: 
             ref_class = get_class(message.text)
             return ref_class(message.text)
-        except KeyError:
-            return
 
 
 class ChampionshipsMenuState(State):
@@ -109,20 +123,20 @@ class Table(State):
         super().__init__(*name_country)
         self.add_item('Главное меню')
         self.add_item('Назад')
-        j = 1
-        for table_stat in table.find({'country':
-                                        mass_contry[self.state_2]}
-                                        ).sort('points',-1):
-            button = "{}. | {} |  И: {}  О: {}  M: {}".format(
+        self.id_champ = config.season_now[self.state_2]
+        table = calendar.aggregate(config.champ_pipeline(self.id_champ))
+        for j, stat in enumerate(table, 1):
+            button = "{}. | {} |  И: {}  О: {}  M: {}-{}".format(
                         j,
-                        table_stat['team'],
-                        table_stat['games'],
-                        table_stat['points'],
-                        table_stat['balls']
+                        stat['_id'],
+                        stat['gamesPlayed'],
+                        stat['points'],
+                        stat['goalsScored'],
+                        stat['goalsConceded']
                         )
                                     
             self.add_item(button)
-            j += 1
+
 
     def handle_input(self, bot, message):
         if message.text == 'Назад':
@@ -132,25 +146,27 @@ class Table(State):
         elif message.text in self.items:
             list_date = []
             name_team = message.text.split("|")[1].strip()
-            name_champ = ' '.join(self.state_2.split()[:-1])
-            for match_name in calendar.find({'champ':name_champ,
-                                                        'is_over':True, 
-                                                        'title':
+            for match_name in calendar.find({'id_champ':self.id_champ,
+                                                        'link_title':
                                                         {'$regex':name_team}}
-                                                        ).sort('datetime', -1
+                                                        ).sort('pub_date', 1
                                                             ).limit(6):
                 true_date = datetime.strptime(match_name['date'],
                                     '%Y-%m-%d').strftime('%d %B')
+                try:
+                    result = match_name['score']['direct']['main']
+                except KeyError:
+                    result = ""
                 list_date.append(
                     formatting.mbold('{}  | {} | {}\
                                     '.format(true_date,
-                                            match_name['title'].split(',')[0],
-                                            match_name['result'],
+                                            match_name['link_title'].split(',')[0],
+                                            result,
                                             escape=True)))
-            
+            logo = calendar.find_one({'$and':[{'teams.0.name':name_team}, 
+                                                       {'id_champ':self.id_champ}]}, {'teams':1})
             bot.send_photo(message.chat.id,
-                            table.find_one({'team':name_team},
-                                                {'logo': 1, '_id': 0})['logo'],
+                            logo['teams'][0]['icon'].replace('60x60', '400x400'),
                             #postgr.get_logo(mass_contry[country_button], text),
                             caption='\n\n'.join(list_date),
                             parse_mode="MarkdownV2"
@@ -162,18 +178,21 @@ class Calendar(State):
         super().__init__(*country)
         self.add_item('Главное меню')
         self.add_item('Назад')
-        self.name_champ = ' '.join(self.state_2.split()[:-1])
-        max_tour = calendar.find({'champ':self.name_champ}).sort('datetime',1).distinct('tour')
-        max_tour.sort(key = lambda x:int(x.split('-')[0]))
+        #self.name_champ = ' '.join(self.state_2.split()[:-1])
+        self.id_champ = config.season_now[self.state_2]
+        max_tour = calendar.find({'id_champ':self.id_champ}).sort('datetime',1).distinct('tour')
+        #max_tour.sort(key = lambda x:int(x.split('-')[0]))
         for tour in max_tour:
-            dates = calendar.find({'champ':self.name_champ, 'tour': tour}).sort('datetime',1).distinct('datetime')
-            end = calendar.find_one({'champ':self.name_champ, 'tour': tour, 'is_over': False})
+            dates = calendar.find({'id_champ':self.id_champ, 'tour': tour}).sort('pub_date',1).distinct('pub_date')
+            is_end = calendar.find_one({'id_champ':self.id_champ, 'tour': tour, 'status.label': 'dns'})
+            date_start = datetime.fromtimestamp(dates[0])
+            date_end = datetime.fromtimestamp(dates[-1])
             tour_button = ('{} | {} - {} | {}'.format(
-                                                    tour, 
-                                                    datetime.strftime(dates[0], '%d %B'), 
-                                                    datetime.strftime(dates[-1], '%d %B'),
+                                                    '{}-й тур'.format(tour), 
+                                                    datetime.strftime(date_start, '%d %B'), 
+                                                    datetime.strftime(date_end, '%d %B'),
                                                     ('Закончен' 
-                                                    if end is None 
+                                                    if is_end is None 
                                                     else "")
                                                     )
                                                     )
@@ -185,21 +204,30 @@ class Calendar(State):
         elif message.text == 'Главное меню':
             return MainMenuState('Главное меню')
         elif message.text in self.items:
-            tour = message.text.split("|")[0].strip()
+            tour = message.text.split("-")[0].strip()
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("Главное меню",
                                             callback_data="back"))
             list_date = []
-            for match_tour in calendar.find({'champ': self.name_champ, 'tour': tour}).sort('datetime', 1):
-                true_date = formatting.mitalic(
-                    datetime.strptime(match_tour['date'],
-                                    '%Y-%m-%d').strftime('%d %B'),escape=True)
-                if true_date not in list_date:
-                    list_date.append(true_date)
+            for match_tour in calendar.find({'id_champ': self.id_champ, 'tour': int(tour)}, 
+                                            {'link_title':1,
+                                             'time':1,
+                                             'result':1,
+                                             'score':1,
+                                             'pub_date': 1
+                                             }).sort('pub_date', 1):
+                true_date = datetime.fromtimestamp(match_tour['pub_date']).strftime('%d %B')
+                true_date_italic = formatting.mitalic(true_date,escape=True)
+                if true_date_italic not in list_date:
+                    list_date.append(true_date_italic)
+                try:
+                    result = match_tour['score']['direct']['main']
+                except KeyError:
+                    result = ""
                 list_date.append(formatting.mbold('{} | {} | {}'.format(
                                                 match_tour['time'],
-                                                match_tour['title'].split(',')[0],
-                                                match_tour['result']), escape=True))
+                                                match_tour['link_title'].split(',')[0],
+                                                result), escape=True))
             text = formatting.mbold(message.text, escape=True)
             bot.send_message(message.chat.id,
                                 f"{text}\n\n" +
@@ -259,9 +287,9 @@ class ReviewChampionat(State):
         if self.state_1 == state_classes[ReviewChampionat][0]:
             query = {}
         else:
-            query = {'country':self.state_1}
+            query = {'champ':self.state_1}
         for key in video_coll.find(query).sort('date',-1).limit(50):
-            self.add_item(key["desc"])
+            self.add_item(key["title"])
 
     def handle_input(self, bot, message):
         if message.text == 'Назад':
@@ -269,7 +297,7 @@ class ReviewChampionat(State):
         elif message.text == 'Главное меню':
             return MainMenuState('Главное меню')
         elif message.text in self.items:
-            video_ref = video_coll.find_one({'desc':message.text})
+            video_ref = video_coll.find_one({'title':message.text})
             bot.send_message(message.chat.id,
                                 "{}\n{}".format(message.text,
                                 video_ref['link']))
@@ -302,9 +330,10 @@ class ViewUpcomingMatches(State):
 
     def handle_input(self, bot, message):
         if message.text == 'Назад':
-                return UpcomingMatchesMenuState(self.state_2)
+            return UpcomingMatchesMenuState(self.state_2)
         elif message.text == 'Главное меню':
             return MainMenuState('Главное меню')
+
 
 
 state_classes = {
@@ -354,15 +383,11 @@ state_classes = {
 
 
 def get_state(chat_id):
-    state_data = user_states_collection.find_one({'chat_id': chat_id}, {'chat_id':0, '_id':0}),
-    arg_state = []
+    state_data = user_states_collection.find_one({'chat_id': chat_id}, {'chat_id':0, '_id':0})
     if state_data:
-        for state in state_data:
-            for value in state.values():
-                arg_state.append(value)
-        state_class = get_class(arg_state[0])
+        state_class = get_class(state_data['state_1'])
         if state_class:
-            return state_class(*arg_state)
+            return state_class(*list(state_data.values()))
     return MainMenuState('Главное меню')
 
 
@@ -386,21 +411,29 @@ def start(message):
     set_state(message.chat.id, state)
     state.send(bot, message)
 
+def update(message):
+    try:
+        datetime.strptime(message.text,'%Y-%m-%d')
+        update = matches.FootballMatchParser()
+        update.update_database_to_date(message.text)
+    except ValueError:
+        message.text = 'update'
+        handle_text(message)
+
+
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
+    if message.text == 'send' and message.chat.id == config.user_id:
+        video.IS_SEND = True
+        return
     if message.text == 'update' and message.chat.id == config.user_id:
-        mongo.update_all()
-        for country in mass_contry.values():
-            mongo.add_table(country)
-        return
-    if message.text == 'all' and message.chat.id == config.user_id:
-        mongo.add_all()
-        return
+        msg = bot.send_message(message.chat.id, 'Введи дату')
+        return bot.register_next_step_handler(msg, update)
     state = get_state(message.chat.id)
     new_state_name = state.handle_input(bot, message)
     if new_state_name:
-        new_state_class = get_class(new_state_name.state_1)
+        new_state_class = type(new_state_name)
         list_attr = []
         attributes = dir(new_state_name)
         for state_attr in attributes:
@@ -412,7 +445,13 @@ def handle_text(message):
 
 
 
+
+
 if __name__ == '__main__':
+    threading.Thread(target=news.news).start()
+    threading.Thread(target=matches.update).start()      
+    threading.Thread(target=video.run_async).start()
+    set_russian_locale()
     while True:
         try:
             bot.infinity_polling()
