@@ -18,9 +18,8 @@ client = MongoClient()
 
 
 news_coll = db['news']
-indexes = [name_index['name'] for name_index in news_coll.list_indexes()] 
-if 'link_1' not in indexes:
-    news_coll.create_index([("link", pymongo.ASCENDING)], unique=True)
+
+news_coll.create_index([("link", pymongo.ASCENDING)], unique=True)
 
 def news():
     users_col = db['users']
@@ -47,7 +46,6 @@ def news():
             time.sleep(timer)
 
 
-threading.Thread(target=news).start()
 
 
 def news_parse():
@@ -85,9 +83,9 @@ def get_one_news(link):
 
 
 def rss_news(response):
-    asd = xmltodict.parse(response.text)
+    rss = xmltodict.parse(response.text)
     list_news = []
-    for news_list in asd['rss']['channel']['item']:
+    for news_list in rss['rss']['channel']['item']:
         link = news_list['link']
         title = news_list["title"].replace('&#039;','\'')
         time = news_list['pubDate'].split()[4].split(':')

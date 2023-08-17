@@ -1,232 +1,272 @@
-import requests
+import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
+import aiohttp
 from bs4 import BeautifulSoup
-import re
-from config import User_agent, dict_rutube, dict_youtube, bot, db
-from config import dict_footbal_video, mass_review, client_champ
-from xpath import review_xpath_href, review_xpath_title
-from xpath import review_xpath_date, review_xpath_match_href, review_xpath_France_href
+from abc import ABC, abstractmethod
+import telebot
+from telebot.async_telebot import AsyncTeleBot
+import config
+import xpath
+from datetime import datetime
 from lxml import etree, html
+import pymongo
+import re
 import time
 import threading
-import pymongo
-from pymongo import errors
-from datetime import datetime
 
-video_coll = db['video']
-users_col = db['users']
+DB_URI = 'mongodb://localhost:27017/'
+DB_NAME = 'video_database'
+COLLECTION_NAME = 'videos'
+IS_SEND = False
 
-indexes = [name_index['name'] for name_index in video_coll.list_indexes()] 
-if 'desc_1' not in indexes:
-    video_coll.create_index([("desc", pymongo.ASCENDING)], unique=True)
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+}
 
+RETRY_DELAY = 60  # Задержка перед повторной попыткой в секундах
+MAX_RETRIES = 3  # Максимальное количество попыток
 
-def bs4_youtube(query):
-    base_video_url = f'https://www.youtube.com/playlist?list={query}'
-    req = requests.get(base_video_url)
-    send = BeautifulSoup(req.text, 'html.parser')
-    search = send.find_all('script')
-    key = r'"watchEndpoint":{"videoId":"'
-    title = r']},"title":{"runs":\[{"text":'
-    asd = {}
-    data = re.findall(key + r"([^*]{12})", str(search))
-    data1 = re.findall(title + r"([^*]{150})", str(search))
-    i = 0
-    for clear_title in data1[:60]:
-        desc = clear_title[1:clear_title.find('}')-1]
-        date = desc.split()[-1]
-        b = i
-        while '.' not in date:
-            desc = data1[b-1][1:data1[b-1].find('}')-1]
-            date = desc.split()[-1]
-            b-=1
-        try:
-            clear_date = datetime.strptime(date,"%d.%m.%Y")
-        except ValueError:
+PROXY_URL = 'http://proxy.example.com:8080'  # URL прокси-сервера
+
+TELEGRAM_TOKEN = config.TOKEN
+TELEGRAM_CHAT_ID = config.channel_id
+
+class Observer(ABC):
+    @abstractmethod
+    def update(self, event: str, data: dict):
+        pass
+
+class TelegramObserver(Observer):
+    def __init__(self, token: str, chat_id: str):
+        #self.bot = telebot.TeleBot(token)
+        self.bot = AsyncTeleBot(token)
+        self.chat_id = chat_id
+
+    async def update(self, event: str, data: dict):
+        if event == 'new_video' and IS_SEND:
+            message = '{}\n{}'.format(data['title'], data['link'])
             try:
-                clear_date = datetime.strptime(date,"%d.%m.%y")
-            except ValueError:
-                continue
-        asd[desc] = '\
-https://www.youtube.com/watch?v=' + data[i][:-1], clear_date
-        i += 1
-    return asd
+                await self.bot.send_message(self.chat_id, message)
+            except telebot.asyncio_helper.ApiTelegramException:
+                await asyncio.sleep(10)
+                await self.bot.send_message(self.chat_id, message)
 
 
-def youtube_video(query):
-    search_query, link = query.split('_')
-    req = requests.get(f'https://www.youtube.com/{link}/videos')
-    send = BeautifulSoup(req.text, 'html.parser')
-    search = send.find_all('script')
-    key = r'"watchEndpoint":{"videoId":"'
-    title = r']},"title":{"runs":\[{"text":'
-    asd = {}
-    data = re.findall(key + r"([^*]{12})", str(search))
-    data1 = re.findall(title + r"([^*]{150})", str(search))
-    i = 0
-    for clear_title in data1:
-        if search_query in clear_title:
-            desc = clear_title[1:clear_title.find('}')-1]
-            date = desc.split()[-1]
-            b = i
-            while '.' not in date:
-                desc = data1[b-1][1:data1[b-1].find('}')-1]
-                date = desc.split()[-1]
-                b-=1
+class AsyncVideoParser(ABC):
+    def __init__(self):
+        self.observers = []
+
+    def add_observer(self, observer: Observer):
+        self.observers.append(observer)
+
+    async def notify_observers(self, event: str, data: dict):
+        for observer in self.observers:
+            await observer.update(event, data)
+
+    @abstractmethod
+    async def get_videos(self, urls: list):
+        pass
+
+    async def fetch_html(self, url: str):
+        retries = 0
+        use_proxy = False
+        while retries < MAX_RETRIES:
             try:
-                clear_date = datetime.strptime(date,"%d.%m.%Y")
+                async with aiohttp.ClientSession(headers=HEADERS) as self.session:
+                    if use_proxy:
+                        async with self.session.get(url, proxy=PROXY_URL) as response:
+                            return await response.text()
+                    else:
+                        async with self.session.get(url) as response:
+                            return await response.text()
+            except Exception as e:
+                print(f'Error fetching HTML: {e}')
+                retries += 1
+                #use_proxy = True
+                await asyncio.sleep(RETRY_DELAY)
+        return None
+
+class AsyncYouTubeVideoParser(AsyncVideoParser):
+    async def get_videos(self, urls: list):
+        videos = []
+        for url in urls:
+            try:
+                search_query, link = url.split('_')
+                full_url = 'https://www.youtube.com/{}/videos'.format(link)
+                country_dict = config.dict_youtube
             except ValueError:
-                clear_date = datetime.strptime(date,"%d.%m.%y")
-            asd[desc] = '\
-https://www.youtube.com/watch?v=' + data[i][:-1], clear_date
-        i += 1
-        continue
-    return asd
-
-
-def rutube_video(query="обзор", i=2):
-    video_dict = {}
-    for j in range(1,i):
-        req = requests.get(f'https://rutube.ru/metainfo/tv/255003/page-{j}')
-        send = BeautifulSoup(req.text, 'html.parser')
-        video_title = etree.HTML(str(send))
-        title = video_title.xpath('//section/a/div/img/@alt')
-        video = video_title.xpath('//div/section/a/@href')
-        for num_list in range(len(video)):
-            if query.upper() in title[num_list].upper():
-                date = title[num_list].split()[-1]
-                b = num_list
-                while '.' not in date:
+                full_url = 'https://www.youtube.com/playlist?list={}'.format(url)
+                country_dict = config.mass_review
+            html = await self.fetch_html(full_url)
+            if html:
+                send = BeautifulSoup(html, 'html.parser')
+                search = send.find_all('script')
+                link_re = r'"watchEndpoint":{"videoId":"'
+                title_re = r']},"title":{"runs":\[{"text":'
+                data_link = re.findall(link_re + r"([^*]{12})", str(search))
+                data_title = re.findall(title_re + r"([^*]{150})", str(search))
+                for i, clear_title in enumerate(data_title):
                     try:
-                        date = title[b+1].split()[-1]
-                        b+=1
+                        cond = search_query in clear_title
+                    except UnboundLocalError:
+                        cond = True
+                    if cond:
+                        title = clear_title[1:clear_title.find('}')-1]
+                        date = title.split()[-1]
+                        b = i
+                        while '.' not in date:
+                            title = data_title[b-1][1:data_title[b-1].find('}')-1]
+                            date = title.split()[-1]
+                            b-=1
+                        try:
+                            clear_date = datetime.strptime(date,"%d.%m.%Y")
+                        except ValueError:
+                            clear_date = datetime.strptime(date,"%d.%m.%y")
+                        for country in country_dict:
+                            if url == country_dict[country]:
+                                break
+                            country = ""
+                        videos.append({'title':title, 
+                                'link': 'https://www.youtube.com/watch?v=' + data_link[i][:-1], 
+                                'date': clear_date,
+                                'champ':country})
+        return videos
+
+class AsyncRuTubeVideoParser(AsyncVideoParser):
+    async def get_videos(self, urls: list):
+        videos = []
+        for url in urls:
+            html = await self.fetch_html(url)
+            if html:
+                send = BeautifulSoup(html, 'html.parser')
+                video_title = etree.HTML(str(send))
+                title = video_title.xpath('//section/a/div/img/@alt')
+                link = video_title.xpath('//div/section/a/@href')
+                for num_list in range(len(link)):
+                    if "обзор".upper() in title[num_list].upper():
+                        date = title[num_list].split()[-1]
+                        b = num_list
+                        while '.' not in date:
+                            try:
+                                date = title[b+1].split()[-1]
+                                b+=1
+                            except IndexError:
+                                date = title[-2].split()[-1]
+                                break
+                        try:
+                            clear_date = datetime.strptime(date,"%d.%m.%Y")
+                        except ValueError:
+                            try:
+                                clear_date = datetime.strptime(date,"%d.%m.%y")
+                            except ValueError:
+                                continue
+                        for country, query in config.dict_rutube.items():
+                            if query.upper() in title[num_list].upper():
+                                break
+                            else:
+                                country = ""
+                        videos.append({'title':title[num_list], 
+                                       'link': link[num_list], 
+                                       'date': clear_date,
+                                       'champ':country})
+        return videos
+
+class AsyncReviewVideoParser(AsyncVideoParser):
+    async def get_videos(self, urls: list):
+        videos = []
+        for url in urls:
+            html_text = await self.fetch_html(url)
+            if html_text:
+                tree = html.fromstring(html_text)
+                review_list_href = tree.xpath(xpath.review_xpath_href)
+                review_list_title = tree.xpath(xpath.review_xpath_title)
+                review_list_date = tree.xpath(xpath.review_xpath_date)
+                for i in range(len(review_list_href)):
+                    review_title = review_list_title[i].replace(
+                        'видео обзор матча', " ")
+                    html_text = await self.fetch_html(review_list_href[i])
+                    tree = html.fromstring(html_text)
+                    list_href = tree.xpath(xpath.review_xpath_match_href)
+                    dates = review_list_href[i].split('/')
+                    date = '.'.join([dates[5],dates[4],dates[3]])
+                    if len(list_href) == 0:
+                        list_href = tree.xpath(xpath.review_xpath_France_href)
+                        if len(list_href) == 0:
+                            continue
+                    try:
+                        review_ref = list_href[0].split('\'')[1]
                     except IndexError:
-                        date = title[-2].split()[-1]
-                        break
-                try:
-                    clear_date = datetime.strptime(date,"%d.%m.%Y")
-                except ValueError:
-                    try:
-                        clear_date = datetime.strptime(date,"%d.%m.%y")
-                    except ValueError:
-                        continue
-                video_dict[title[num_list]] = video[num_list], clear_date
-    return video_dict
+                        try:
+                            review_ref = list_href[0].split('=')[1]
+                        except IndexError:
+                            continue
+                    title = '{} {}'.format(review_title.strip(), 
+                                        review_list_date[i].strip())
+                    for country in config.dict_footbal_video:
+                            if url == config.dict_footbal_video[country]:
+                                break
+                            country = ""
+                    videos.append({'title':title, 
+                                   'link': review_ref, 
+                                   'date': datetime.strptime(date,"%d.%m.%Y"),
+                                   'champ': country})
+        return videos
 
+class AsyncVideoScraper:
+    def __init__(self, parser: AsyncVideoParser):
+        self.parser = parser
+        self.client = AsyncIOMotorClient(DB_URI)
+        self.db = self.client[DB_NAME]
+        self.collection = self.db[COLLECTION_NAME]
+        self.collection.create_index('title', unique = True)
 
-def football_video(link):
-    dict_review = {}
-    sess = requests.Session()
-    sess.headers.update(User_agent)
-    response = sess.get(link)
-    tree = html.fromstring(response.text)
-    review_list_href = tree.xpath(review_xpath_href)
-    review_list_title = tree.xpath(review_xpath_title)
-    review_list_date = tree.xpath(review_xpath_date)
-    for i in range(len(review_list_href)):
-        review_title = review_list_title[i].replace(
-            'видео обзор матча', " ")
-        response = sess.get(review_list_href[i])
-        tree = html.fromstring(response.text)
-        list_href = tree.xpath(review_xpath_match_href)
-        dates = review_list_href[i].split('/')
-        date = '.'.join([dates[5],dates[4],dates[3]])
-        if len(list_href) == 0:
-            list_href = tree.xpath(review_xpath_France_href)
-            if len(list_href) == 0:
-                continue
-        try:
-            review_ref = list_href[0].split('\'')[1]
-        except IndexError:
+    async def scrape(self, urls: list):
+        videos = await self.parser.get_videos(urls)
+        for video in videos:
             try:
-                review_ref = list_href[0].split('=')[1]
-            except IndexError:
+                await self.collection.insert_one(video)
+                await self.parser.notify_observers('new_video', video)
+            except pymongo.errors.DuplicateKeyError:
                 continue
-        title = '{} {}'.format(review_title.strip(), 
-                               review_list_date[i].strip())
-        dict_review[title] = review_ref, datetime.strptime(date,"%d.%m.%Y")
-    return dict_review
 
+async def scrape_site(scraper, urls):
+    await scraper.scrape(urls)
 
-def send_and_bd(func, dict_query):
-    if video_coll.count_documents({}) == 0:
-        add_video(func, dict_query)
-        print('добавляю все')
-    if func == bs4_youtube:
-        return
+async def main():
+    telegram_observer = TelegramObserver(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
+
+    youtube_parser = AsyncYouTubeVideoParser()
+    youtube_parser.add_observer(telegram_observer)
+    youtube_parser1 = AsyncYouTubeVideoParser()
+    youtube_parser1.add_observer(telegram_observer)
+    rutube_parser = AsyncRuTubeVideoParser()
+    rutube_parser.add_observer(telegram_observer)
+    review_parser = AsyncReviewVideoParser()
+    review_parser.add_observer(telegram_observer)
+
+    scrapers = [
+        AsyncVideoScraper(youtube_parser),
+        AsyncVideoScraper(youtube_parser1),
+        AsyncVideoScraper(rutube_parser),
+        AsyncVideoScraper(review_parser)
+    ]
+    urls_list = [
+        list(config.dict_youtube.values()),
+        list(config.mass_review.values()),
+        ['https://rutube.ru/metainfo/tv/255003/page-{}'.format(j) for j in range(1,20)],
+        list(config.dict_footbal_video.values())
+    ]
+    interval = 3600  # Интервал в секундах
+
     while True:
-        try:
-            for key, query in dict_query.items():
-                video_dict = func(query)
-                for desc_video, link_date in video_dict.items():
-                    try:
-                        video_coll.insert_one({
-                                        "desc": desc_video, 
-                                        "link": link_date[0], 
-                                        "country":key,
-                                        'date':link_date[1]})
-                        send_user(desc_video, link_date[0])
-                    except errors.DuplicateKeyError:
-                        continue
-                time.sleep(120)
-            time.sleep(1800)
-        except Exception as e:
-            bot.send_message(377190896, f"пиздарики{key}\n {e}")
-            time.sleep(1800)
+        start = time.time()
+        tasks = [scrape_site(scraper, urls) for scraper, urls in zip(scrapers, urls_list)]
+        await asyncio.gather(*tasks)
+        print('time work:{}'.format(time.time() - start))
+        await asyncio.sleep(interval)
+
+def run_async():
+    asyncio.run(main())
 
 
-def send_user(desc_video, link):
-    for id in users_col.find({'Push':True}):
-        int_id = int(id['_id'])
-        msg = bot.send_message(int_id, "{}\n {}".format(desc_video, link))
-        if int_id < 0:
-            bot.pin_chat_message(int_id, msg.message_id)
-
-
-def add_video(func, dict_query):
-    for key, query in dict_query.items():
-        video_dict = func(query)
-        list_video = [{f:a} for f,a in video_dict.items()]
-        list_video.reverse()
-        for video_dicts in list_video:
-            for desc, link_date in video_dicts.items():
-                try:
-                    video_coll.insert_one({"desc": desc, 
-                                           "link": link_date[0], 
-                                           "country":key, 
-                                           'date':link_date[1]})
-                except Exception:
-                    continue
-
-
-def update_rutube():
-    j = 2
-    if video_coll.count_documents({}) == 0:
-        j = 21
-        print('добавляю все')
-    while True:
-        try:
-            video_rutube = rutube_video(i = j)
-            for title, video_date in video_rutube.items():
-                try:
-                    for country, query in dict_rutube.items():
-                        if query.upper() in title.upper():
-                            video_coll.insert_one({
-                                                "desc": title, 
-                                                "link": video_date[0],
-                                                'date':  video_date[1], 
-                                                "country":country})
-                            send_user(title, video_date[0])
-                            break
-                except errors.DuplicateKeyError:
-                    continue
-            time.sleep(1800)
-        except Exception as e:
-            bot.send_message(377190896, f"пиздарики{__name__} \n {e}")
-            time.sleep(1800)
-
-
-threading.Timer(1, update_rutube).start()
-#threading.Timer(1, send_and_bd, [youtube_video, dict_youtube]).start()
-threading.Timer(1, send_and_bd, [football_video, dict_footbal_video]).start()
-#threading.Timer(1, send_and_bd, [bs4_youtube, mass_review]).start()
-
+     

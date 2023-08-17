@@ -8,12 +8,13 @@ services:
       #POSTGRES_DB: champ
   mongo:
     image: mongo
-    volumes: 
-        - /home/Vark/BotChamp/json:/docker-entrypoint-initdb.d
+    volumes:
+        - ./json:/docker-entrypoint-initdb.d
   bot:
+    build: .
     image: champ
-    depends_on: 
+    depends_on:
          - mongo
     volumes:
-        - /home/Vark/BotChamp:/apps/
+        - ./:/apps/
     command: python main.py
