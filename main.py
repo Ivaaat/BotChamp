@@ -6,7 +6,6 @@ import sys
 import live
 import news 
 import video 
-import video
 import time
 import config
 import matches
@@ -307,10 +306,10 @@ class UpcomingMatchesMenuState(State):
     def __init__(self, *match):
         super().__init__(*match)
         self.add_item('Назад')
-        for championship in state_classes[ViewUpcomingMatches]:
-            if len(live.upcoming_match(championship)) == 0:
+        for day in state_classes[ViewUpcomingMatches]:
+            if len(live.upcoming_match(day)) == 0:
                 continue
-            self.add_item(championship)
+            self.add_item(day)
 
     def handle_input(self, bot, message):
         if message.text == 'Назад':
@@ -448,9 +447,9 @@ def handle_text(message):
 
 
 if __name__ == '__main__':
-    threading.Thread(target=news.news).start()
-    threading.Thread(target=matches.update).start()      
-    threading.Thread(target=video.run_async).start()
+    # threading.Thread(target=news.news).start()
+    # threading.Thread(target=matches.update).start()      
+    # threading.Thread(target=video.run_async).start()
     set_russian_locale()
     while True:
         try:

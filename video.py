@@ -12,12 +12,11 @@ from lxml import etree, html
 import pymongo
 import re
 import time
-import threading
 
 DB_URI = 'mongodb://localhost:27017/'
 DB_NAME = 'video_database'
 COLLECTION_NAME = 'videos'
-IS_SEND = False
+IS_SEND = True
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -267,6 +266,5 @@ async def main():
 
 def run_async():
     asyncio.run(main())
-
 
      

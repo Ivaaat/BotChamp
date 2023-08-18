@@ -1,17 +1,18 @@
 from datetime import datetime, timedelta
-from config import User_agent, update_champ
+from config import User_agent
 import time
 from championat import Calendar, Table
 import threading
-from config import parse_site,  db, bot
+from config import parse_site, db, TOKEN
 from config import user_id, season
 import requests
 import pymongo
 from pymongo import errors, MongoClient
-
+import telebot
 
 calendar = db['calendar_2022/2023']
 calendar.create_index([("title", pymongo.ASCENDING)], unique=True)
+bot = telebot.TeleBot(TOKEN)
 
 
 class StatChamp:
@@ -331,10 +332,11 @@ def update_upcoming():
     client = MongoClient()
     db = client['matches']
     start = '2023-07-01'
-    end = '2023-07-30'
+    end = '2024-07-30'
     while start != end:
         #start = str((datetime.strptime(start, '%Y-%m-%d') + timedelta(1)).date())
         collection = db[start]
+        collection.drop()
         sess = requests.Session()
         sess.headers.update(User_agent) 
         parse_link = "{}/stat/{}.json".format(parse_site, start)
@@ -349,33 +351,30 @@ def update_upcoming():
             start = str((datetime.strptime(start, '%Y-%m-%d') + timedelta(1)).date())
             continue
         try:
-            update_value.append(response['matches']['football']['tournaments'])
+            update_value = response['matches']['football']['tournaments']
         except:
             continue
         time.sleep(1)
-        collection.update_many(update_value)
+        collection.insert_one(update_value)
 
 #update_upcoming()
 
 def create_date_champ():
     client = MongoClient()
     db_get = client['matches']
-    db_add = client['my_db']
+    db_add = client['championat']
     names_coll = db_get.list_collection_names()
     names_coll.sort()
     coll_date = db_add['date']
     coll_date.create_index('date', unique =True)
-    coll_date_champ = db_add['date_champ']
     coll_champ = db_add['champ']
-    coll_champ.create_index('id_old', unique =True)
+    coll_champ.create_index('id', unique =True)
     coll_matches = db_add['matches']
-    coll_matches.create_index('id_old', unique =True)
+    coll_matches.create_index('id', unique =True)
     coll_teams = db_add['teams']
-    coll_teams.create_index('id_old', unique =True)
-    coll_champ_teams = db_add['champ_teams']
+    coll_teams.create_index('id', unique =True)
     for date_get in names_coll:
         coll_get = db_get[date_get]
-        
         for doc in coll_get.find({},{'_id':0}):
             for stat in doc.values():
                 try:
@@ -396,122 +395,139 @@ def create_date_champ():
                     champ = coll_champ.insert_one({'name_tournament': name_tournament,
                                             'priority':stat['priority'],
                                             'img':img_tournament,
-                                            'id_old': stat['id']})
+                                            'id': stat['id'],
+                                            'link': stat['link']})
                     champ_id = champ.inserted_id
                 except pymongo.errors.DuplicateKeyError:
-                    champ = coll_champ.find_one({'id_old': stat['id']})
+                    champ = coll_champ.find_one({'id': stat['id']})
                     champ_id = champ['_id']
-                # coll_date_champ.insert_one({'id_date':{ "$ref" : "date", "$id" : data_id},
-                #                             'id_champ':{ "$ref" : "champ", "$id" : champ_id}})
                 for match in stat['matches']:
                     try:
                         home_team = coll_teams.insert_one({'name': match['teams'][0]['name'], 
-                                            'id_old': match['teams'][0]['id'],
+                                            'id': match['teams'][0]['id'],
                                             'img':  match['teams'][0]['icon']})
                         home_team_id = home_team.inserted_id
                     except pymongo.errors.DuplicateKeyError:
-                        home_team = coll_teams.find_one({'id_old': match['teams'][0]['id']})  
+                        home_team = coll_teams.find_one({'id': match['teams'][0]['id']})  
                         home_team_id = home_team['_id']
                     try:
                         away_team = coll_teams.insert_one({'name': match['teams'][1]['name'], 
-                                            'id_old': match['teams'][1]['id'],
+                                            'id': match['teams'][1]['id'],
                                             'img':  match['teams'][1]['icon']})
                         away_team_id = away_team.inserted_id
                     except pymongo.errors.DuplicateKeyError:
-                        away_team = coll_teams.find_one({'id_old': match['teams'][1]['id']})
+                        away_team = coll_teams.find_one({'id': match['teams'][1]['id']})
                         away_team_id = away_team['_id']
+                    match['id_date'] = data_id
+                    match['id_champ'] = champ_id
+                    match['id_home_team'] = home_team_id
+                    match['id_away_team'] = away_team_id
+                    match.pop('_id')
+                    match.pop('teams')
+                    match.pop('data-id')
+                    match.pop('type')
+                    match.pop('icons')
+                    match.pop('date')
                     try:
-                        scoreByPeriods = match['scoreByPeriods'] 
-                    except KeyError:
-                        scoreByPeriods = None
-                    try:
-                        tour = match['tour']
-                    except KeyError:
-                        tour = None
-                    try:
-                        roundForLTAndMC = match['roundForLTAndMC']
-                    except KeyError:
-                        roundForLTAndMC = '{}-й тур'.format(tour)
-                    try:
-                        score = match['score']
-                        result = match['result']
-                    except KeyError:
-                        score = None
-                        result = None
-                    try:
-                        coll_matches.insert_one({
-                                            'id_date':data_id,
-                                            'id_champ': champ_id,
-                                            # 'id_date':{ "$ref" : "date", "$id" : data_id},
-                                            # 'id_champ':{ "$ref" : "champ", "$id" : champ_id},
-                                            'id_old': match['id'],
-                                            # 'id_home_team': { "$ref" : "teams", "$id" : home_team_id},
-                                            # 'id_away_team': { "$ref" : "teams", "$id" : away_team_id},
-                                            'id_home_team': home_team_id,
-                                            'id_away_team': away_team_id,
-                                            'flags': match['flags'],
-                                            'score':score,
-                                            'status':match['status'],
-                                            'group': match['group'],
-                                            'result': result,
-                                            'link_title':match['link_title'],
-                                            'pub_date':match['pub_date'],
-                                            'roundForLTAndMC':roundForLTAndMC,
-                                            'tour': tour,
-                                            'section':match['section'],
-                                            'periods':match['periods'],
-                                            'scoreByPeriods':scoreByPeriods
-                                             })
+                        coll_matches.insert_one(match)
                     except pymongo.errors.DuplicateKeyError:
                         continue
 
-                    pipeline = [
-                            {
-                                '$lookup': {
-                                    'from': 'date', 
-                                    'localField': 'id_date', 
-                                    'foreignField': '_id', 
-                                    'as': 'id_date'
-                                }
-                            }, {
-                                '$match': {
-                                    'id_date.date': '1992-03-29'
-                                }
-                            }, {
-                                '$lookup': {
-                                    'from': 'champ', 
-                                    'localField': 'id_champ', 
-                                    'foreignField': '_id', 
-                                    'as': 'champ'
-                                }
-                            }, {
-                                '$unwind': '$champ'
-                            }, {
-                                '$lookup': {
-                                    'from': 'teams', 
-                                    'localField': 'id_home_team', 
-                                    'foreignField': '_id', 
-                                    'as': 'home_team'
-                                }
-                            }, {
-                                '$unwind': '$home_team'
-                            }, {
-                                '$lookup': {
-                                    'from': 'teams', 
-                                    'localField': 'id_away_team', 
-                                    'foreignField': '_id', 
-                                    'as': 'away_team'
-                                }
-                            }, {
-                                '$unwind': '$away_team'
-                            }, {
-                                '$project': {
-                                    'champ': '$champ.name_tournament', 
-                                    'home_team': '$home_team.name', 
-                                    'away_team': '$away_team.name'
-                                }
-                            }
-                        ]
+#create_date_champ()
+
+def update_join_collection(): 
+    update_value = []
+    client = MongoClient()
+    start = '2023-08-16'
+    end = '2024-07-30'
+    db_add = client['championat']
+    coll_date = db_add['date']
+    coll_date.create_index('date', unique =True)
+    coll_champ = db_add['champ']
+    coll_champ.create_index('id', unique =True)
+    coll_matches = db_add['matches']
+    coll_matches.create_index('id', unique =True)
+    coll_teams = db_add['teams']
+    coll_teams.create_index('id', unique =True)
+    while start != end:
+        sess = requests.Session()
+        sess.headers.update(User_agent) 
+        parse_link = "{}/stat/{}.json".format(parse_site, start)
+        try:
+            response = sess.get(parse_link).json()
+        except:
+            time.sleep(30)
+            continue
+        try:
+            start = response['nav']['next']['date']
+        except:
+            start = str((datetime.strptime(start, '%Y-%m-%d') + timedelta(1)).date())
+            continue
+        try:
+            update_value = response['matches']['football']['tournaments']
+        except:
+            continue
+        try:
+            date = coll_date.insert_one({'date': start})
+            data_id = date.inserted_id
+        except pymongo.errors.DuplicateKeyError:
+            date = coll_date.find_one({'date': start})
+            data_id = date['_id']
+        for matches in update_value.values():
+            try:
+                name_tournament = matches['name_tournament']
+            except KeyError:
+                name_tournament = matches['name']
+            try:
+                img_tournament = matches['img_tournament']
+            except KeyError:
+                img_tournament = matches['img']
+            try:
+                champ = coll_champ.insert_one({
+                                            'name_tournament': name_tournament,
+                                            'priority':matches['priority'],
+                                            'img':img_tournament,
+                                            'id': matches['id'],
+                                            'link': matches['link']})
+                champ_id = champ.inserted_id
+            except pymongo.errors.DuplicateKeyError:
+                champ = coll_champ.find_one({'id': matches['id']})
+                champ_id = champ['_id']
+            for match in matches['matches']:
+                try:
+                    home_team = coll_teams.insert_one({
+                                        'name': match['teams'][0]['name'], 
+                                        'id': match['teams'][0]['id'],
+                                        'img':  match['teams'][0]['icon']})
+                    home_team_id = home_team.inserted_id
+                except pymongo.errors.DuplicateKeyError:
+                    home_team = coll_teams.find_one({'id': match['teams'][0]['id']})  
+                    home_team_id = home_team['_id']
+                try:
+                    away_team = coll_teams.insert_one({
+                                        'name': match['teams'][1]['name'], 
+                                        'id': match['teams'][1]['id'],
+                                        'img':  match['teams'][1]['icon']})
+                    away_team_id = away_team.inserted_id
+                except pymongo.errors.DuplicateKeyError:
+                    away_team = coll_teams.find_one({'id': match['teams'][1]['id']})
+                    away_team_id = away_team['_id']
+                match['id_date'] = data_id
+                match['id_champ'] = champ_id
+                match['id_home_team'] = home_team_id
+                match['id_away_team'] = away_team_id
+                match.pop('_id')
+                match.pop('teams')
+                match.pop('data-id')
+                match.pop('type')
+                match.pop('icons')
+                match.pop('date')
+                coll_matches.replace_one({'id':match['id']}, match, upsert=True)
+                    
+
+update_join_collection()
+                
+
 
             
 #create_date_champ()
@@ -540,5 +556,95 @@ def get_matches():
 
 #get_matches()
 
-        
+def get_today_matches():
+    client = MongoClient()
+    start = '2023-07-01'
+    end = '2024-07-30'
+    db = client['championat']
+    pipl = [
+    {
+        '$match': {
+            'date': '2023-08-17'
+        }
+    }, {
+        '$lookup': {
+            'from': 'matches', 
+            'localField': '_id', 
+            'foreignField': 'id_date', 
+            'as': 'matches'
+        }
+    }, {
+        '$unwind': '$matches'
+    }, {
+        '$lookup': {
+            'from': 'champ', 
+            'localField': 'matches.id_champ', 
+            'foreignField': '_id', 
+            'as': 'name_champ'
+        }
+    }, {
+        '$lookup': {
+            'from': 'teams', 
+            'localField': 'matches.id_home_team', 
+            'foreignField': '_id', 
+            'as': 'home_team'
+        }
+    }, {
+        '$lookup': {
+            'from': 'teams', 
+            'localField': 'matches.id_away_team', 
+            'foreignField': '_id', 
+            'as': 'away_team'
+        }
+    }, {
+        '$match': {
+            'name_champ.priority': {
+                '$gte': 100
+            }
+        }
+    }, {
+        '$project': {
+            'name_champ': 1, 
+            'matches': {
+                'full_result': {
+                    '$concat': [
+                        {
+                            '$arrayElemAt': [
+                                '$home_team.name', 0
+                            ]
+                        }, ' - ', {
+                            '$arrayElemAt': [
+                                '$away_team.name', 0
+                            ]
+                        }, ', ', {
+                            '$toString': '$matches.result.detailed.goal1'
+                        }, ' : ', {
+                            '$toString': '$matches.result.detailed.goal2'
+                        }, {
+                            '$ifNull': [
+                                '$matches.result.full_res', ' '
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    }, {
+        '$group': {
+            '_id': {
+                '$arrayElemAt': [
+                    '$name_champ.name_tournament', 0
+                ]
+            }, 
+            'matches': {
+                '$push': '$matches'
+            }
+        }
+    }
+]
+    date_match = db['date'].aggregate(pipl)
+    for champ in date_match:
+        champ
+
+#get_today_matches()
 

@@ -156,6 +156,7 @@ class FootballMatchParser(MatchParser):
                 current_date = resp_json['nav']['next']['date'] if delta == 1 else resp_json['nav']['prev']['date']
             except (KeyError,TypeError):
                 return
+    
             
 
 

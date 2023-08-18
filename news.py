@@ -139,3 +139,6 @@ def req_yandex(text):
         '//img[@class="serp-item__thumb justifier__thumb"]/@src')
     ref_pic = f'https:{news_ref[0]}'
     return ref_pic
+
+
+#news()
