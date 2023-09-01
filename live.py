@@ -99,7 +99,10 @@ class UpcomingMatches:
         
     
     def serializer_match(self, tournament, match):
-        name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        try:
+            name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        except KeyError:
+            name_champ = '{}'.format(tournament)
         if name_champ not in self.list_matches:
             self.list_matches.append(name_champ)
         try:
@@ -138,7 +141,10 @@ class Live(UpcomingMatches):
         return self.list_matches
     
     def serializer_match(self, tournament, match):
-        name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        try:
+            name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        except KeyError:
+            name_champ = '{}'.format(tournament)
         if name_champ not in self.list_matches:
             self.list_matches.append(name_champ)
         time_match =", {} Live".format(match['status']['name']) 
@@ -156,13 +162,16 @@ class Today(UpcomingMatches):
         super().__init__(1)
 
     def serializer_match(self, tournament, match):
-        name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        try:
+            name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        except KeyError:
+            name_champ = '{}'.format(tournament)
         if name_champ not in self.list_matches:
             self.list_matches.append(name_champ)
         result = '| {} - {} | {}'.format(
                     match['home_team'],
                     match['away_team'],
-                    match['status']['name'],
+                    match['time'],
                     )
         self.list_matches.append(result)
 
@@ -176,7 +185,10 @@ class Yesterday(UpcomingMatches):
         super().__init__(-1)
 
     def serializer_match(self, tournament, match):
-        name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        try:
+            name_champ = '{}, {}'.format(tournament, match['roundForLTAndMC']) 
+        except KeyError:
+            name_champ = '{}'.format(tournament) 
         if name_champ not in self.list_matches:
             self.list_matches.append(name_champ)
         try:

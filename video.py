@@ -14,9 +14,9 @@ import re
 import time
 
 DB_URI = 'mongodb://localhost:27017/'
-DB_NAME = 'video_database'
+DB_NAME = 'championat'
 COLLECTION_NAME = 'videos'
-IS_SEND = True
+IS_SEND = False
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'

@@ -1,7 +1,11 @@
 import psycopg2.errorcodes
 from championat import Calendar, Table
 import time
-conn = psycopg2.connect(dbname="champ", user="postgres", password="qwerty$", host="127.0.0.1")
+from pymongo import errors, MongoClient
+import json
+from datetime import datetime
+import query_pg
+conn = psycopg2.connect(dbname="championat", user="postgres", password="qwerty$", host="127.0.0.1")
 cursor = conn.cursor()
 
 conn.autocommit = True
@@ -166,3 +170,98 @@ def get_logo(name, query):
     cursor.execute(f"SELECT logo FROM {name} WHERE team = %s",(query,))
     logo, = cursor.fetchone()
     return logo        
+
+
+
+
+def create_date_champ():
+    client = MongoClient()
+    db_get = client['matches']
+    names_coll = db_get.list_collection_names()
+    names_coll.sort()
+    for date_get in names_coll:
+        coll_get = db_get[date_get]
+        for doc in coll_get.find({},{'_id':0}):
+            for stat in doc.values():
+                cursor.execute(query_pg.insert_date, (date_get,))
+                id_date, = cursor.fetchone()
+                try:
+                    name_tournament = stat['name_tournament']
+                except KeyError:
+                    name_tournament = stat['name']
+                try:
+                    img_tournament = stat['img_tournament']
+                except KeyError:
+                    img_tournament = stat['img']
+                cursor.execute(query_pg.insert_champ, (
+                                                        name_tournament,
+                                                        stat['priority'],
+                                                        img_tournament,
+                                                        stat['id'],
+                                                        stat['link']
+                                                        ))
+                id_champ, = cursor.fetchone()
+                for match in stat['matches']:
+                    cursor.execute(query_pg.insert_team, (
+                                                        match['teams'][0]['name'],
+                                                        match['teams'][0]['icon'],
+                                                        match['teams'][0]['id']
+                                                        ))
+                    id_home_team, = cursor.fetchone()
+                    cursor.execute(query_pg.insert_team, (
+                                                        match['teams'][1]['name'],
+                                                        match['teams'][1]['icon'],
+                                                        match['teams'][1]['id']
+                                                        ))
+                    id_away_team, = cursor.fetchone()
+                    try:
+                        round = match['roundForLTAndMC']
+                    except KeyError:
+                        round = ""
+                    try:
+                        tour = match['tour']
+                    except KeyError:
+                        tour = None
+                    try:
+                        result = json.dumps(match['result'])
+                        score = json.dumps(match['score'])
+                        total_home = match['score']['totalHome']
+                        total_away = match['score']['totalAway']
+                        if type(total_home) is not int or type(total_away) is not int:
+                            raise KeyError
+                    except KeyError:
+                        result = None
+                        score = None
+                        total_home = None
+                        total_away = None
+                    cursor.execute(query_pg.insert_match, (
+                                                        match['id'],
+                                                        match['section'],
+                                                        match['link'],
+                                                        match['time'],
+                                                        json.dumps(match['group']),
+                                                        json.dumps(match['flags']),
+                                                        result,
+                                                        json.dumps(match['status']),
+                                                        datetime.fromtimestamp(match['pub_date']),
+                                                        score,
+                                                        total_home,
+                                                        total_away,
+                                                        round,
+                                                        tour,
+                                                        json.dumps(match['periods']),
+                                                        match['time_str'],
+                                                        match['link_title'],
+                                                        id_date,
+                                                        id_champ,
+                                                        id_home_team,
+                                                        id_away_team
+                                                        ))
+
+
+create_date_champ()
+
+def get_table(id_champ):
+    cursor.execute(query_pg.select_champ_table,(str(id_champ),))
+    return cursor.fetchall()
+#get_table(5441)

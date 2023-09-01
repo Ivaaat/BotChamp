@@ -1,3 +1,4 @@
+import pymongo
 import time
 from abc import ABC, abstractmethod
 from datetime import date, timedelta, datetime
@@ -5,6 +6,7 @@ from datetime import time as tm
 import requests
 from pymongo import MongoClient
 import config
+import query_mongo
 
 
 class Match:
@@ -74,8 +76,11 @@ class MatchParser(ABC):
 class FootballMatchParser(MatchParser):
     def __init__(self):
         self.client = MongoClient()
-        self.db = self.client["champ"]
-        self.collection = self.db["foot"]
+        self.db = self.client["championat"]
+        self.date_coll = self.db["date"]
+        self.champ_coll = self.db["champ"]
+        self.matches_coll = self.db["matches"]
+        self.teams_coll = self.db["teams"]
         self.sess = requests.Session()
         self.sess.headers.update(config.User_agent) 
         self.initial_link = 'https://www.championat.com/stat/'
@@ -84,7 +89,7 @@ class FootballMatchParser(MatchParser):
     def update_results(self, data):
         for match_data in data:
             match_id = match_data.data["id"]
-            match = self.collection.find_one({"id": match_id})
+            match = self.matches_coll.find_one({"id": match_id})
             if not match:
                 self.collection.insert_one(match_data.data)
                 continue
@@ -104,27 +109,72 @@ class FootballMatchParser(MatchParser):
             sleep_time = (midnight_tomorrow - now).total_seconds()
             time.sleep(sleep_time)
 
-    def single_match_request(self, id, date):
+    def single_date_request(self, date):
         url = "{}{}.json".format(self.initial_link, date)
         response = self.sess.get(url)
-        data = response.json()['matches']['football']['tournaments']
-        for match_champ in data.values():
-            for match_data in match_champ['matches']:
-                if match_data['id'] == id:
-                    match_data.pop('_id')
-                    match_data['id_champ'] = match_champ['id']
+        self.resp_json = response.json()
+        data = self.resp_json['matches']['football']['tournaments']
+        try:
+            date = self.date_coll.insert_one({'date': date})
+            data_id = date.inserted_id
+        except pymongo.errors.DuplicateKeyError:
+            date = self.date_coll.find_one({'date': date})
+            data_id = date['_id']
+            for matches in data.values():
+                try:
+                    name_tournament = matches['name_tournament']
+                except KeyError:
+                    name_tournament = matches['name']
+                try:
+                    img_tournament = matches['img_tournament']
+                except KeyError:
+                    img_tournament = matches['img']
+                try:
+                    champ = self.champ_coll.insert_one({
+                                                'name_tournament': name_tournament,
+                                                'priority':matches['priority'],
+                                                'img':img_tournament,
+                                                'id': matches['id'],
+                                                'link': matches['link']})
+                    champ_id = champ.inserted_id
+                except pymongo.errors.DuplicateKeyError:
+                    champ = self.champ_coll.find_one({'id': matches['id']})
+                    champ_id = champ['_id']
+                for match in matches['matches']:
                     try:
-                        match_data['name_champ'] = match_champ['name_tournament']
-                    except KeyError:
-                        match_data['name_champ'] = match_data['link_title'].split('.')[3].strip()
-                    return match_data
+                        home_team = self.teams_coll.insert_one({
+                                            'name': match['teams'][0]['name'], 
+                                            'id': match['teams'][0]['id'],
+                                            'img':  match['teams'][0]['icon']})
+                        home_team_id = home_team.inserted_id
+                    except pymongo.errors.DuplicateKeyError:
+                        home_team = self.teams_coll.find_one({'id': match['teams'][0]['id']})  
+                        home_team_id = home_team['_id']
+                    try:
+                        away_team = self.teams_coll.insert_one({
+                                            'name': match['teams'][1]['name'], 
+                                            'id': match['teams'][1]['id'],
+                                            'img':  match['teams'][1]['icon']})
+                        away_team_id = away_team.inserted_id
+                    except pymongo.errors.DuplicateKeyError:
+                        away_team = self.teams_coll.find_one({'id': match['teams'][1]['id']})
+                        away_team_id = away_team['_id']
+                    match['id_date'] = data_id
+                    match['id_champ'] = champ_id
+                    match['id_home_team'] = home_team_id
+                    match['id_away_team'] = away_team_id
+                    match.pop('_id')
+                    match.pop('teams')
+                    match.pop('data-id')
+                    match.pop('type')
+                    match.pop('icons')
+                    match.pop('date')
+                    self.matches_coll.replace_one({'id':match['id']}, match, upsert=True)
 
     def update_previous_result(self):
         now_timestamp = datetime.now().timestamp()
-        for matches_not_end in self.collection.find({'$and':[{'pub_date':{'$lt':now_timestamp}},
-                                                    {'status.label':{'$nin':['post', "cans",'delay','dns', 'ntl','fin']}}]}):
-            updated_match = self.single_match_request(matches_not_end['id'], matches_not_end['date'])
-            self.collection.replace_one({'id': matches_not_end['id']}, updated_match)
+        for matches_not_end in self.matches_coll.aggregate(query_mongo.pub_pipl(now_timestamp)):
+            self.single_date_request(matches_not_end['date'])
 
     def update_database_to_date(self, to_date):
         current_date = date.today()
@@ -132,32 +182,11 @@ class FootballMatchParser(MatchParser):
         if current_date > datetime.strptime(to_date, "%Y-%m-%d").date():
                 delta = - 1
         while str(current_date) != to_date:
-            url = "{}{}.json".format(self.initial_link, current_date)
-            response = self.sess.get(url)
+            self.single_date_request(str(current_date))
             try:
-                resp_json = response.json()
-                data = resp_json['matches']['football']['tournaments']
-            except (KeyError,TypeError):
-                data = {}
-            for match_champ in data.values():
-                for match_data in match_champ['matches']:
-                    match = self.collection.find_one({"id": match_data["id"]})
-                    match_data.pop('_id')
-                    match_data['id_champ'] = match_champ['id']
-                    try:
-                        match_data['name_champ'] = match_champ['name_tournament']
-                    except KeyError:
-                        match_data['name_champ'] = match_data['link_title'].split('.')[3].strip()
-                    if not match:
-                        self.collection.insert_one(match_data)
-                    else:
-                        self.collection.replace_one({'id': match_data['id']}, match_data)
-            try:
-                current_date = resp_json['nav']['next']['date'] if delta == 1 else resp_json['nav']['prev']['date']
-            except (KeyError,TypeError):
+                current_date = self.resp_json['nav']['next']['date'] if delta == 1 else self.resp_json['nav']['prev']['date']
+            except (KeyError, TypeError):
                 return
-    
-            
 
 
 class Observer(ABC):
@@ -210,39 +239,11 @@ class MatchParserContext:
         self.provider = provider
 
     def run(self):
-        current_date = date.today()
-        prev_live_matches_count = 0
         self.parser.update_previous_result()
         while True:
-            matches = self.provider.get_matches(current_date)
-            live_matches = []
-            finished_matches = []
-            future_matches = []
-            for match in matches:
-                if match.is_live:
-                    live_matches.append(match)
-                elif match.is_finished:
-                    finished_matches.append(match)
-                else:
-                    future_matches.append(match)
-            live_matches_count = len(live_matches)
-            if finished_matches and live_matches_count != prev_live_matches_count:
-                self.parser.update_results(finished_matches)
-            if live_matches:
-                self.parser.update_results(live_matches)
-                time.sleep(30)
-                prev_live_matches_count = live_matches_count
-            else:
-                if future_matches:
-                    try:
-                        self.parser.update_results(future_matches)
-                        self.parser.sleep_until_next_match(future_matches)
-                    except ValueError:
-                        current_date = self.provider.next_date
-                else:
-                    self.parser.update_results(finished_matches)
-                    current_date = self.provider.next_date
-                    self.parser.update_previous_result()
+            current_date = str(date.today())
+            self.parser.single_date_request(current_date)
+            time.sleep(60)
 
 class MatchParserFacade:
     def __init__(self):
@@ -263,8 +264,8 @@ def update():
 #update.update_database_to_date('2024-08-26')
 
 
-# if __name__ == "__main__":
-#     #facade = MatchParserFacade()
-#     #facade.run()
-#     update = FootballMatchParser()
-#     update.update_database_to_date('2024-05-26')
+if __name__ == "__main__":
+    facade = MatchParserFacade()
+    facade.run()
+    # update = FootballMatchParser()
+    # update.update_database_to_date('2024-05-26')

@@ -428,6 +428,8 @@ def create_date_champ():
                     match.pop('type')
                     match.pop('icons')
                     match.pop('date')
+                    if date_get == '2023-08-20':
+                        breakpoint()
                     try:
                         coll_matches.insert_one(match)
                     except pymongo.errors.DuplicateKeyError:
@@ -461,8 +463,8 @@ def update_join_collection():
         try:
             start = response['nav']['next']['date']
         except:
-            start = str((datetime.strptime(start, '%Y-%m-%d') + timedelta(1)).date())
-            continue
+            #start = str((datetime.strptime(start, '%Y-%m-%d') + timedelta(1)).date())
+            break
         try:
             update_value = response['matches']['football']['tournaments']
         except:
@@ -525,7 +527,7 @@ def update_join_collection():
                 coll_matches.replace_one({'id':match['id']}, match, upsert=True)
                     
 
-update_join_collection()
+#update_join_collection()
                 
 
 
