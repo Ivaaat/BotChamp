@@ -140,5 +140,3 @@ def req_yandex(text):
     ref_pic = f'https:{news_ref[0]}'
     return ref_pic
 
-
-#news()
