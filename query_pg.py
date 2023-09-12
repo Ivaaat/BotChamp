@@ -1,4 +1,3 @@
-
 create_table_champ = '''CREATE TABLE champ (
 id serial PRIMARY KEY,
 name_tournament TEXT , 
@@ -89,6 +88,13 @@ JOIN teams home_team ON m.id_home_team = home_team.id
 JOIN champ c ON c.id = m.id_champ
 WHERE date.date = %s and c.priority > 100
 ORDER BY m.pub_date'''
+
+select_calendar = '''SELECT roundForLTAndMC, ARRAY_AGG(d.date)  as dates, (CASE WHEN(BOOL_AND(m.score is  null)) THEN '' ELSE 'Закончен' END) as end FROM champ as c
+JOIN matches m ON m.id_champ = c.id
+JOIN date d ON  d.id = m.id_date
+WHERE c.id_old = %s
+GROUP BY roundForLTAndMC, tour
+ORDER BY tour ASC'''
 
 insert_date = "INSERT INTO date (date) VALUES (%s) ON CONFLICT (date) DO UPDATE SET date = date.date RETURNING id"
 insert_champ = "INSERT INTO champ (name_tournament, priority, img, id_old, link) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (id_old) DO UPDATE SET id_old = champ.id_old RETURNING id"

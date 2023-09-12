@@ -16,7 +16,6 @@ import time
 DB_URI = 'mongodb://localhost:27017/'
 DB_NAME = 'championat'
 COLLECTION_NAME = 'videos'
-IS_SEND = False
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -42,7 +41,7 @@ class TelegramObserver(Observer):
         self.chat_id = chat_id
 
     async def update(self, event: str, data: dict):
-        if event == 'new_video' and IS_SEND:
+        if event == 'new_video' and config.IS_SEND:
             message = '{}\n{}'.format(data['title'], data['link'])
             try:
                 await self.bot.send_message(self.chat_id, message)
@@ -139,7 +138,7 @@ class AsyncRuTubeVideoParser(AsyncVideoParser):
             if html:
                 send = BeautifulSoup(html, 'html.parser')
                 video_title = etree.HTML(str(send))
-                title = video_title.xpath('//section/a/div/img/@alt')
+                title = video_title.xpath('//section/a/div/div/img/@alt')
                 link = video_title.xpath('//div/section/a/@href')
                 for num_list in range(len(link)):
                     if "обзор".upper() in title[num_list].upper():

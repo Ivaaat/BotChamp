@@ -275,8 +275,8 @@ class NewsMenuItem(MenuItem):
         self.user_state.push_history('Главное меню')
         self.user_state.set_state('Новости📰')
         self.add_item('Назад')
-        for news_doc in news_coll.find().limit(50).sort('date', -1):
-            title = '{} {}'.format(news_doc['date'].split()[1], news_doc['title']) 
+        for news_doc in news_coll.find().limit(50).sort('published', -1):
+            title = '{} {}'.format(news_doc['published'].split()[1], news_doc['title']) 
             self.add_item(title)
         self.send(message)
 
@@ -287,14 +287,14 @@ class NewsOneMenuItem(MenuItem):
         if len(text) >= 1024:
             num_symb = text[:1024].rfind('.') + 1
             bot.send_photo(message.chat.id,
-                            news_doc['logo'],
+                            news_doc['img'],
                             caption=text[:num_symb])
             for x in range(num_symb, len(text), 1024):
                 bot.send_message(message.chat.id,
                                     text[x:x+1024])
         else:
             bot.send_photo(message.chat.id, 
-                                news_doc['logo'],
+                                news_doc['img'],
                                 caption=text,
                                 )
 
@@ -382,7 +382,7 @@ def start(message):
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     if message.text == 'send' and message.chat.id == config.user_id:
-        video.IS_SEND = True
+        config.IS_SEND = True
         return
     if message.text == 'update' and message.chat.id == config.user_id:
         msg = bot.send_message(message.chat.id, 'Введи дату')
@@ -404,7 +404,7 @@ def handle_text(message):
             return
         menu_item.execute(message)
     except Exception as e:
-        return e
+        return print(e)
         
 def update(message):
     try:

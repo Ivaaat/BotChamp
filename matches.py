@@ -1,4 +1,4 @@
-import pymongo
+from pymongo import ReturnDocument
 import time
 from abc import ABC, abstractmethod
 from datetime import date, timedelta, datetime
@@ -83,7 +83,7 @@ class FootballMatchParser(MatchParser):
         self.teams_coll = self.db["teams"]
         self.sess = requests.Session()
         self.sess.headers.update(config.User_agent) 
-        self.initial_link = 'https://www.championat.com/stat/'
+        self.initial_link = 'https://www.championat.com/stat/data/'
 
 
     def update_results(self, data):
@@ -109,72 +109,60 @@ class FootballMatchParser(MatchParser):
             sleep_time = (midnight_tomorrow - now).total_seconds()
             time.sleep(sleep_time)
 
-    def single_date_request(self, date):
-        url = "{}{}.json".format(self.initial_link, date)
+    def single_date_request(self, date_str):
+        url = "{}{}".format(self.initial_link, date_str)
         response = self.sess.get(url)
         self.resp_json = response.json()
         data = self.resp_json['matches']['football']['tournaments']
-        try:
-            date = self.date_coll.insert_one({'date': date})
-            data_id = date.inserted_id
-        except pymongo.errors.DuplicateKeyError:
-            date = self.date_coll.find_one({'date': date})
-            data_id = date['_id']
-            for matches in data.values():
-                try:
-                    name_tournament = matches['name_tournament']
-                except KeyError:
-                    name_tournament = matches['name']
-                try:
-                    img_tournament = matches['img_tournament']
-                except KeyError:
-                    img_tournament = matches['img']
-                try:
-                    champ = self.champ_coll.insert_one({
-                                                'name_tournament': name_tournament,
-                                                'priority':matches['priority'],
-                                                'img':img_tournament,
-                                                'id': matches['id'],
-                                                'link': matches['link']})
-                    champ_id = champ.inserted_id
-                except pymongo.errors.DuplicateKeyError:
-                    champ = self.champ_coll.find_one({'id': matches['id']})
-                    champ_id = champ['_id']
-                for match in matches['matches']:
-                    try:
-                        home_team = self.teams_coll.insert_one({
-                                            'name': match['teams'][0]['name'], 
-                                            'id': match['teams'][0]['id'],
-                                            'img':  match['teams'][0]['icon']})
-                        home_team_id = home_team.inserted_id
-                    except pymongo.errors.DuplicateKeyError:
-                        home_team = self.teams_coll.find_one({'id': match['teams'][0]['id']})  
-                        home_team_id = home_team['_id']
-                    try:
-                        away_team = self.teams_coll.insert_one({
-                                            'name': match['teams'][1]['name'], 
-                                            'id': match['teams'][1]['id'],
-                                            'img':  match['teams'][1]['icon']})
-                        away_team_id = away_team.inserted_id
-                    except pymongo.errors.DuplicateKeyError:
-                        away_team = self.teams_coll.find_one({'id': match['teams'][1]['id']})
-                        away_team_id = away_team['_id']
-                    match['id_date'] = data_id
-                    match['id_champ'] = champ_id
-                    match['id_home_team'] = home_team_id
-                    match['id_away_team'] = away_team_id
-                    match.pop('_id')
-                    match.pop('teams')
-                    match.pop('data-id')
-                    match.pop('type')
-                    match.pop('icons')
-                    match.pop('date')
-                    self.matches_coll.replace_one({'id':match['id']}, match, upsert=True)
+        date = self.date_coll.find_one_and_update({'date': date_str}, {'$set':{'date': date_str}}, 
+                                                  upsert = True, 
+                                                  return_document=ReturnDocument.AFTER)
+        self.num_matches = 0
+        for matches in data.values():
+            try:
+                name_tournament = matches['name_tournament']
+            except KeyError:
+                name_tournament = matches['name']
+            try:
+                img_tournament = matches['img_tournament']
+            except KeyError:
+                img_tournament = matches['img']
+            champ = self.champ_coll.find_one_and_update({'id': matches['id']},{'$set':{
+                                        'name_tournament': name_tournament,
+                                        'priority':matches['priority'],
+                                        'img':img_tournament,
+                                        'id': matches['id'],
+                                        'link': matches['link']}}, upsert = True, return_document=ReturnDocument.AFTER)
+            for match in matches['matches']:
+                home_team = self.teams_coll.find_one_and_update({'id': match['teams'][0]['id']},{'$set':{
+                                    'name': match['teams'][0]['name'], 
+                                    'id': match['teams'][0]['id'],
+                                    'img':  match['teams'][0]['icon']}}, upsert = True, return_document=ReturnDocument.AFTER)
+                away_team = self.teams_coll.find_one_and_update({'id': match['teams'][1]['id']},{'$set':{
+                                    'name': match['teams'][1]['name'], 
+                                    'id': match['teams'][1]['id'],
+                                    'img':  match['teams'][1]['icon']}}, upsert = True, return_document=ReturnDocument.AFTER)
+                match['id_date'] = date['_id']
+                match['id_champ'] = champ['_id']
+                match['id_home_team'] = home_team['_id']
+                match['id_away_team'] = away_team['_id']
+                match.pop('_id')
+                match.pop('teams')
+                match.pop('data-id')
+                match.pop('type')
+                match.pop('icons')
+                match.pop('date')
+                self.matches_coll.replace_one({'id':match['id']}, match, upsert=True)
+                if matches['priority'] > 100:
+                    self.num_matches+=1
+            
+
 
     def update_previous_result(self):
         now_timestamp = datetime.now().timestamp()
         for matches_not_end in self.matches_coll.aggregate(query_mongo.pub_pipl(now_timestamp)):
             self.single_date_request(matches_not_end['date'])
+
 
     def update_database_to_date(self, to_date):
         current_date = date.today()
@@ -244,6 +232,12 @@ class MatchParserContext:
             current_date = str(date.today())
             self.parser.single_date_request(current_date)
             time.sleep(60)
+            if self.parser.num_matches == 0:
+                now = datetime.now() 
+                midnight_tomorrow = datetime.combine(now.date() + timedelta(days=1), tm.min)
+                sleep_time = (midnight_tomorrow - now).total_seconds()
+                time.sleep(sleep_time)
+
 
 class MatchParserFacade:
     def __init__(self):
@@ -259,9 +253,9 @@ def update():
     facade = MatchParserFacade()
     facade.run()
 
-#update()
-#update = FootballMatchParser()
-#update.update_database_to_date('2024-08-26')
+# update()
+# updates = FootballMatchParser()
+# updates.update_database_to_date('2023-12-26')
 
 
 if __name__ == "__main__":

@@ -220,84 +220,93 @@ def champ_pipl(id_champ_field):
 def date_pipl(date_field):
     #date_matches в монго в коллекции date
     return [
-        {
-            '$match': {
-                'date': date_field
+    {
+        '$match': {
+            'date': date_field
+        }
+    }, {
+        '$lookup': {
+            'from': 'matches', 
+            'localField': '_id', 
+            'foreignField': 'id_date', 
+            'as': 'matches'
+        }
+    }, {
+        '$unwind': '$matches'
+    }, {
+        '$lookup': {
+            'from': 'champ', 
+            'localField': 'matches.id_champ', 
+            'foreignField': '_id', 
+            'as': 'name_champ'
+        }
+    }, {
+        '$lookup': {
+            'from': 'teams', 
+            'localField': 'matches.id_home_team', 
+            'foreignField': '_id', 
+            'as': 'home_team'
+        }
+    }, {
+        '$lookup': {
+            'from': 'teams', 
+            'localField': 'matches.id_away_team', 
+            'foreignField': '_id', 
+            'as': 'away_team'
+        }
+    }, {
+        '$match': {
+            'name_champ.priority': {
+                '$gte': 100
             }
-        }, {
-            '$lookup': {
-                'from': 'matches', 
-                'localField': '_id', 
-                'foreignField': 'id_date', 
-                'as': 'matches'
+        }
+    }, {
+        '$project': {
+            'name_champ': 1, 
+            'matches': {
+                'status': '$matches.status', 
+                'result': '$matches.result', 
+                'score': '$matches.score', 
+                'time': '$matches.time', 
+                'flags': '$matches.flags', 
+                'roundForLTAndMC': '$matches.roundForLTAndMC', 
+                'home_team': {
+                    '$arrayElemAt': [
+                        '$home_team.name', 0
+                    ]
+                }, 
+                'away_team': {
+                    '$arrayElemAt': [
+                        '$away_team.name', 0
+                    ]
+                }, 
+                'goal1': '$matches.result.detailed.goal1', 
+                'goal2': '$matches.result.detailed.goal2', 
+                'full_res': '$matches.result.full_res'
             }
-        }, {
-            '$unwind': '$matches'
-        }, {
-            '$lookup': {
-                'from': 'champ', 
-                'localField': 'matches.id_champ', 
-                'foreignField': '_id', 
-                'as': 'name_champ'
-            }
-        }, {
-            '$lookup': {
-                'from': 'teams', 
-                'localField': 'matches.id_home_team', 
-                'foreignField': '_id', 
-                'as': 'home_team'
-            }
-        }, {
-            '$lookup': {
-                'from': 'teams', 
-                'localField': 'matches.id_away_team', 
-                'foreignField': '_id', 
-                'as': 'away_team'
-            }
-        }, {
-            '$match': {
-                'name_champ.priority': {
-                    '$gte': 100
-                }
-            }
-        }, {
-            '$project': {
-                'name_champ': 1, 
-                'matches': {
-                    'status': '$matches.status', 
-                    'result': '$matches.result', 
-                    'score': '$matches.score', 
-                    'time': '$matches.time', 
-                    'flags': '$matches.flags', 
-                    'roundForLTAndMC': '$matches.roundForLTAndMC', 
-                    'home_team': {
-                        '$arrayElemAt': [
-                            '$home_team.name', 0
-                        ]
-                    }, 
-                    'away_team': {
-                        '$arrayElemAt': [
-                            '$away_team.name', 0
-                        ]
-                    }, 
-                    'goal1': '$matches.result.detailed.goal1', 
-                    'goal2': '$matches.result.detailed.goal2', 
-                    'full_res': '$matches.result.full_res'
-                }
-            }
-        }, {
-            '$group': {
-                '_id': {
+        }
+    }, {
+        '$group': {
+            '_id': {
+                'tournament': {
                     '$arrayElemAt': [
                         '$name_champ.name_tournament', 0
                     ]
-                }, 
-                'matches': {
-                    '$push': '$matches'
                 }
+            }, 
+            'priority': {
+                '$first': '$name_champ.priority'
+            }, 
+            'matches': {
+                '$push': '$matches'
             }
         }
-    ]
+    }, {
+        '$sort': {
+            'priority.0': -1
+        }
+    }
+]
 
 def pub_pipl(pub_date_field):
     #prev_match в монго в коллекции matches

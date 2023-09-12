@@ -259,9 +259,16 @@ def create_date_champ():
                                                         ))
 
 
-create_date_champ()
+#create_date_champ()
 
 def get_table(id_champ):
     cursor.execute(query_pg.select_champ_table,(str(id_champ),))
     return cursor.fetchall()
 #get_table(5441)
+
+def get_calendar(id_champ):
+    cursor.execute(query_pg.select_calendar,(str(id_champ),))
+    calendar = cursor.fetchall()
+    cursor.close()
+    return calendar
+get_calendar(5441)
